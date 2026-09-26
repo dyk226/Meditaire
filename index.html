@@ -1,0 +1,795 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Meditaire">
+<meta name="theme-color" content="#0d332f">
+<meta name="color-scheme" content="dark">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<title>Meditaire</title>
+<style>
+:root {
+  --felt: #0d332f;
+  --felt-2: #134841;
+  --ink: #f3efe4;
+  --muted: #a9c2bb;
+  --card: #fbf8f1;
+  --card-ink: #1f2522;
+  --gold: #f2c35b;
+  --bad: #ff7a6b;
+  --good: #7be0a6;
+  --shadow: 0 2px 6px rgba(0,0,0,.35);
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; height: 100%; overflow: hidden; }
+body {
+  background: radial-gradient(ellipse at 50% 30%, var(--felt-2), var(--felt) 70%);
+  background-color: var(--felt);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Noto Sans KR", sans-serif;
+  -webkit-user-select: none; user-select: none;
+  touch-action: manipulation;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+.hidden { display: none !important; }
+
+#app { height: 100dvh; display: flex; flex-direction: column; padding-top: var(--safe-t); }
+
+/* HUD */
+#hud { display: flex; align-items: center; gap: 10px; padding: 8px 12px; }
+.icon-btn { background: rgba(255,255,255,.08); border: 0; border-radius: 10px; width: 40px; height: 40px; font-size: 20px; }
+.hud-title { flex: 1; min-width: 0; }
+#packName { font-weight: 700; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sub { color: var(--muted); font-size: 12px; }
+.hud-stats { display: flex; gap: 14px; text-align: right; }
+.hud-stats .lbl { display: block; font-size: 11px; color: var(--muted); }
+.hud-stats b { font-size: 18px; font-variant-numeric: tabular-nums; }
+#combo.hot { color: var(--gold); }
+
+/* Table */
+#table { flex: 1; position: relative; min-height: 0; display: flex; align-items: center; justify-content: center; }
+#field { position: relative; }
+
+.card {
+  position: absolute; border-radius: 8px; overflow: hidden;
+  box-shadow: var(--shadow);
+  transition: transform .15s ease;
+}
+.card.up { background: var(--card); color: var(--card-ink); display: flex; flex-direction: column; border-top: 5px solid var(--c, #8a8f98); }
+.card.up .cat { font-size: .72em; font-weight: 700; color: var(--c, #666); padding: 3px 5px 0; white-space: nowrap; overflow: hidden; }
+.card.up .txt {
+  flex: 1; min-height: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; text-align: center;
+  padding: 2px 5px 5px; font-weight: 600; line-height: 1.22; word-break: keep-all; overflow-wrap: anywhere;
+}
+.card.down { background: #2c6f64; border: 2px solid #f3efe4; }
+.card.down .back {
+  position: absolute; inset: 4px; border-radius: 5px;
+  background: repeating-linear-gradient(45deg, #1f5a51 0 6px, #25665c 6px 12px);
+  display: flex; align-items: center; justify-content: center; color: rgba(243,239,228,.55); font-weight: 800; font-size: 1.4em;
+}
+#field .card.up { cursor: pointer; }
+#field .card.up:active { transform: translateY(-4px); }
+.card.hint { animation: pulse 0.9s ease-in-out 3; }
+@keyframes pulse { 0%,100% { box-shadow: var(--shadow); } 50% { box-shadow: 0 0 0 4px var(--gold), 0 0 18px var(--gold); } }
+.card.shake { animation: shake .35s; }
+@keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+.card.show-playable { outline: 3px solid rgba(123,224,166,.8); outline-offset: -3px; }
+
+/* Tray */
+#tray { padding: 8px 12px calc(10px + var(--safe-b)); background: rgba(0,0,0,.18); }
+.tray-row { display: flex; align-items: center; justify-content: center; gap: 18px; position: relative; }
+.pile { position: relative; border-radius: 10px; }
+#stock {
+  position: relative; width: 76px; height: 100px; border: 2px solid #f3efe4; background: #2c6f64; padding: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: var(--shadow);
+}
+#stock::before { content: ""; position: absolute; inset: 5px; border-radius: 6px; background: repeating-linear-gradient(45deg, #1f5a51 0 6px, #25665c 6px 12px); }
+#stock > * { position: relative; }
+#stockCount { font-size: 24px; font-weight: 800; }
+.stock-lbl { font-size: 12px; color: var(--muted); }
+#stock.empty { opacity: .35; }
+#stock.hint { animation: pulse 0.9s ease-in-out 3; }
+#waste { width: 132px; height: 128px; }
+#waste .card { position: absolute; inset: 0; width: 100%; height: 100%; font-size: 15px; box-shadow: 0 0 0 3px var(--gold), var(--shadow); }
+.tagchips { position: absolute; left: 0; right: 0; top: calc(100% + 4px); display: flex; flex-wrap: wrap; gap: 3px; justify-content: center; }
+.tagchips span { font-size: 10px; background: rgba(255,255,255,.12); padding: 1px 6px; border-radius: 99px; color: var(--muted); }
+#tray.with-tags .tray-row { margin-bottom: 20px; }
+.actions { display: flex; gap: 8px; justify-content: center; margin-top: 10px; }
+.actions button { flex: 1; max-width: 140px; background: rgba(255,255,255,.1); border: 0; border-radius: 10px; padding: 10px 6px; font-size: 14px; }
+.actions button:disabled { opacity: .35; }
+
+/* Toast */
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%) translateY(10px); bottom: calc(240px + var(--safe-b));
+  background: rgba(10,25,22,.92); border: 1px solid rgba(255,255,255,.15); color: var(--ink);
+  padding: 8px 14px; border-radius: 99px; font-size: 14px; opacity: 0; pointer-events: none;
+  transition: opacity .2s, transform .2s; z-index: 50; max-width: calc(100vw - 32px); text-align: center;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.good b { color: var(--good); }
+.toast.bad { color: var(--bad); }
+
+.spark { position: fixed; width: 8px; height: 8px; border-radius: 50%; pointer-events: none; z-index: 60; animation: spark .6s ease-out forwards; }
+@keyframes spark { to { transform: translate(var(--dx), var(--dy)) scale(.2); opacity: 0; } }
+
+/* Overlays */
+.overlay {
+  position: fixed; inset: 0; z-index: 100; background: rgba(6,20,18,.94); overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: calc(16px + var(--safe-t)) 16px calc(24px + var(--safe-b));
+}
+.panel { max-width: 560px; margin: 0 auto; }
+.logo { font-size: 32px; font-weight: 800; letter-spacing: -.5px; margin: 10px 0 2px; }
+.logo span { color: var(--gold); }
+.tagline { color: var(--muted); margin: 0 0 18px; font-size: 14px; }
+h3 { font-size: 13px; color: var(--muted); font-weight: 600; margin: 22px 0 8px; letter-spacing: .5px; }
+.pack {
+  display: flex; width: 100%; text-align: left; align-items: center; gap: 12px;
+  background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.08); border-radius: 14px; padding: 14px; margin-bottom: 8px;
+}
+.pack:active { background: rgba(255,255,255,.14); }
+.pack .pname { font-weight: 700; font-size: 16px; }
+.pack .pmeta { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.pack .go { margin-left: auto; color: var(--gold); font-size: 20px; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,.07); font-size: 15px; }
+.row small { display: block; color: var(--muted); font-size: 12px; }
+select, textarea, input[type=text] {
+  font: inherit; color: var(--ink); background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.15); border-radius: 8px; padding: 8px;
+}
+input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--gold); }
+textarea { width: 100%; min-height: 200px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; -webkit-user-select: text; user-select: text; }
+input[type=text] { width: 100%; }
+.btn { background: rgba(255,255,255,.1); border: 0; border-radius: 10px; padding: 12px 16px; font-size: 15px; }
+.btn.primary { background: var(--gold); color: #2a2208; font-weight: 700; }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.btn-row .btn { flex: 1; }
+.howto { color: var(--muted); font-size: 13px; line-height: 1.6; padding-left: 18px; margin: 0; }
+.msg { font-size: 13px; margin-top: 8px; min-height: 18px; }
+.msg.err { color: var(--bad); }
+.msg.ok { color: var(--good); }
+
+.result-title { font-size: 28px; font-weight: 800; margin: 16px 0 4px; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 14px 0; }
+.stats div { background: rgba(255,255,255,.07); border-radius: 10px; padding: 10px 4px; text-align: center; }
+.stats b { display: block; font-size: 20px; }
+.stats span { font-size: 11px; color: var(--muted); }
+.chain { list-style: none; padding: 0; margin: 0; }
+.chain li { padding: 8px 10px; border-left: 3px solid rgba(255,255,255,.12); margin-left: 6px; font-size: 14px; }
+.chain li.match { border-color: var(--good); }
+.chain li.draw { color: var(--muted); }
+.chain .via { display: block; font-size: 12px; color: var(--gold); }
+.left-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.left-list span { background: rgba(255,255,255,.08); border-radius: 8px; padding: 4px 8px; font-size: 13px; }
+.left-list small { color: var(--muted); }
+.custom-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,.07); }
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="hud">
+    <button id="btnMenu" class="icon-btn" aria-label="메뉴">☰</button>
+    <div class="hud-title"><div id="packName">Meditaire</div><div id="hudSub" class="sub"></div></div>
+    <div class="hud-stats">
+      <div><span class="lbl">점수</span><b id="score">0</b></div>
+      <div><span class="lbl">콤보</span><b id="combo">0</b></div>
+    </div>
+  </header>
+  <main id="table"><div id="field"></div></main>
+  <footer id="tray">
+    <div class="tray-row">
+      <button id="stock" aria-label="덱에서 뽑기"><span id="stockCount">0</span><span class="stock-lbl">뽑기</span></button>
+      <div id="waste" class="pile"></div>
+    </div>
+    <div class="actions">
+      <button id="btnUndo">↶ 되돌리기</button>
+      <button id="btnHint">💡 힌트</button>
+      <button id="btnNew">⟳ 새 판</button>
+    </div>
+  </footer>
+</div>
+<div id="toast" class="toast"></div>
+
+<section id="menu" class="overlay">
+  <div class="panel">
+    <div class="logo">Medi<span>taire</span></div>
+    <p class="tagline">연관 개념을 꼬리물기로 이어서 판을 비우는 국시 솔리테어</p>
+    <button id="btnResume" class="btn primary hidden" style="width:100%">이어하기</button>
+    <h3>카드팩 선택</h3>
+    <div id="packList"></div>
+    <button id="btnImport" class="btn" style="width:100%">＋ 내 카드팩 추가 (JSON)</button>
+    <h3>설정</h3>
+    <div class="row"><label for="optLayout">배치<small>자동: 기본은 피라미드, 아이패드에서 큰 팩(전체 섞기)은 트라이픽스</small></label>
+      <select id="optLayout"><option value="auto">자동</option><option value="pyramid">피라미드 (15장)</option><option value="tripeaks">트라이픽스 (28장)</option></select></div>
+    <div class="row"><label for="optTags">활성 카드 태그 보기<small>켜면 쉬워짐 — 처음 공부할 때 추천</small></label><input type="checkbox" id="optTags"></div>
+    <div class="row"><label for="optSolvable">풀 수 있는 판만 딜링<small>매 판 자동으로 해답 존재 여부 검사</small></label><input type="checkbox" id="optSolvable"></div>
+    <h3>플레이 방법</h3>
+    <ol class="howto">
+      <li>아래 <b>활성 카드</b>와 공통 개념(태그)을 공유하는 필드 카드를 탭하면 연결됩니다.</li>
+      <li>연결한 카드가 새 활성 카드가 되어 꼬리물기가 이어집니다. 연속 연결할수록 콤보 점수 ↑</li>
+      <li>연결할 카드가 없으면 <b>뽑기</b>로 활성 카드를 바꾸세요 (콤보 초기화).</li>
+      <li>필드를 모두 비우면 클리어! 끝나면 내가 만든 연결 고리를 복습할 수 있어요.</li>
+    </ol>
+  </div>
+</section>
+
+<section id="result" class="overlay hidden">
+  <div class="panel">
+    <div id="resultTitle" class="result-title"></div>
+    <div id="resultSub" class="sub"></div>
+    <div class="stats">
+      <div><b id="rScore">0</b><span>점수</span></div>
+      <div><b id="rCombo">0</b><span>최대 콤보</span></div>
+      <div><b id="rLinks">0</b><span>연결</span></div>
+      <div><b id="rWrong">0</b><span>오답 탭</span></div>
+    </div>
+    <div class="btn-row">
+      <button id="btnAgain" class="btn primary">같은 팩 새 판</button>
+      <button id="btnResultUndo" class="btn">한 수 되돌리기</button>
+      <button id="btnToMenu" class="btn">메뉴</button>
+    </div>
+    <div id="leftWrap">
+      <h3>남은 카드 — 어떤 개념과 이어질까?</h3>
+      <div id="leftList" class="left-list"></div>
+    </div>
+    <h3>내 연결 고리 복습</h3>
+    <ul id="chainList" class="chain"></ul>
+  </div>
+</section>
+
+<section id="importer" class="overlay hidden">
+  <div class="panel">
+    <div class="logo" style="font-size:24px">내 카드팩 추가</div>
+    <p class="tagline">① 프롬프트를 복사해 ChatGPT/Claude에 서머리 노트와 함께 붙여넣기 → ② 받은 JSON을 아래에 붙여넣고 저장</p>
+    <button id="btnCopyPrompt" class="btn" style="width:100%">📋 카드 생성 프롬프트 복사</button>
+    <h3>팩 이름</h3>
+    <input type="text" id="impName" placeholder="예: 신장내과 - 사구체신염">
+    <h3>JSON</h3>
+    <textarea id="impJson" spellcheck="false" placeholder='{"tagLabels": {...}, "cards": [{"text": "...", "category": "질환", "tags": ["..."]}]}'></textarea>
+    <div id="impMsg" class="msg"></div>
+    <div class="btn-row">
+      <button id="btnImpSave" class="btn primary">저장</button>
+      <button id="btnImpClose" class="btn">닫기</button>
+    </div>
+    <h3>저장된 내 카드팩</h3>
+    <div id="customList"></div>
+  </div>
+</section>
+
+<script src="packs.js"></script>
+<script>
+(() => {
+'use strict';
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('meditaire:' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('meditaire:' + k, JSON.stringify(v)); } catch (e) {} },
+  del(k) { try { localStorage.removeItem('meditaire:' + k); } catch (e) {} }
+};
+const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+const CAT_COLORS = {
+  '질환': '#d9534f', '원인': '#e08a2c', '위험인자': '#c9a227', '병태생리': '#8e62d6',
+  '검사소견': '#2f86d6', '임상상': '#1fa393', '진단': '#4a5fd0', '치료': '#2e9e4f', '합병증': '#c2458f'
+};
+
+// 카드 위치는 반 칸(half-card) 단위 x좌표와 행 번호로 표현.
+// 바로 아래 행에서 x가 ±1인 카드가 그 카드를 덮는다.
+const LAYOUTS = {
+  pyramid: { name: '피라미드', halfW: 10, deck: 16, rows: [[4], [3, 5], [2, 4, 6], [1, 3, 5, 7], [0, 2, 4, 6, 8]] },
+  tripeaks: { name: '트라이픽스', halfW: 20, deck: 22, rows: [[3, 9, 15], [2, 4, 8, 10, 14, 16], [1, 3, 5, 7, 9, 11, 13, 15, 17], [0, 2, 4, 6, 8, 10, 12, 14, 16, 18]] }
+};
+const buildSlots = key => {
+  const slots = [];
+  LAYOUTS[key].rows.forEach((xs, row) => xs.forEach(x => slots.push({ row, x })));
+  slots.forEach(s => { s.coveredBy = []; slots.forEach((o, j) => { if (o.row === s.row + 1 && Math.abs(o.x - s.x) === 1) s.coveredBy.push(j); }); });
+  return slots;
+};
+const tableSize = key => LAYOUTS[key].rows.reduce((n, r) => n + r.length, 0);
+
+// ---------- Packs ----------
+let PACKS = [];
+const CARD_BY_UID = new Map();
+function normalizePack(p) {
+  const pack = { id: p.id, name: p.name, subject: p.subject || '', tagLabels: p.tagLabels || {}, custom: !!p.custom };
+  pack.cards = p.cards.map((c, i) => {
+    const card = { uid: p.id + ':' + i, text: c.text, category: c.category || '', tags: c.tags.slice(), packId: p.id };
+    card.tagSet = new Set(card.tags);
+    CARD_BY_UID.set(card.uid, card);
+    return card;
+  });
+  return pack;
+}
+function loadPacks() {
+  CARD_BY_UID.clear();
+  const builtin = (window.MEDITAIRE_PACKS || []).map(normalizePack);
+  const custom = store.get('customPacks', []).map(p => normalizePack({ ...p, custom: true }));
+  const mix = {
+    id: 'mix', name: '전체 섞기', subject: '기본 팩 모두', tagLabels: {}, custom: false,
+    cards: builtin.flatMap(p => p.cards)
+  };
+  builtin.forEach(p => Object.assign(mix.tagLabels, p.tagLabels));
+  PACKS = [...builtin, mix, ...custom];
+}
+const packById = id => PACKS.find(p => p.id === id);
+const shared = (a, b) => a.tags.filter(t => b.tagSet.has(t));
+const tagLabel = (pack, t) => (pack.tagLabels && pack.tagLabels[t]) || t;
+
+// ---------- Settings ----------
+const settings = Object.assign({ layout: 'auto', showTags: false, solvable: true }, store.get('settings', {}));
+const saveSettings = () => store.set('settings', settings);
+
+function chooseLayout(pack) {
+  // 트라이픽스는 28장이 깔려서 카드가 적은 팩에선 풀 수 있는 판이 드물다. 자동 모드는 큰 팩에서만 선택.
+  const fits = pack.cards.length >= tableSize('tripeaks') + 1 + 8;
+  if (settings.layout === 'tripeaks' && fits) return 'tripeaks';
+  if (settings.layout === 'auto' && pack.cards.length >= 60 && $('#table').clientWidth >= 640) return 'tripeaks';
+  return 'pyramid';
+}
+
+// ---------- Dealing ----------
+// 태그로 이어진 카드들을 우선 뽑아 연결 밀도가 높은 부분집합을 만든다.
+function pickSubset(cards, n) {
+  if (cards.length <= n) return shuffle(cards.slice());
+  const pool = shuffle(cards.slice());
+  const chosen = new Set(), tags = new Set();
+  const add = c => { chosen.add(c); c.tags.forEach(t => tags.add(t)); };
+  add(pool[0]);
+  while (chosen.size < n) {
+    const cands = pool.filter(c => !chosen.has(c) && c.tags.some(t => tags.has(t)));
+    add(cands.length ? cands[Math.floor(Math.random() * cands.length)] : pool.find(c => !chosen.has(c)));
+  }
+  return shuffle([...chosen]);
+}
+
+// 완전정보 DFS로 이 딜이 클리어 가능한지 확인. 탐색 예산 초과 시 null.
+function solve(slots, table, start, deck, budget) {
+  const n = slots.length, all = [...table, start, ...deck];
+  const M = all.map(a => all.map(b => a !== b && a.tags.some(t => b.tagSet.has(t))));
+  const cover = slots.map(s => s.coveredBy.reduce((m, j) => m | (1 << j), 0));
+  const full = n === 31 ? -1 : (1 << n) - 1;
+  const seen = new Set();
+  let nodes = 0;
+  const dfs = (removed, dp, act) => {
+    if (removed === full) return true;
+    if (++nodes > budget) throw 0;
+    const key = removed + ',' + dp + ',' + act;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    for (let i = 0; i < n; i++) {
+      if (!(removed & (1 << i)) && !(cover[i] & ~removed) && M[act][i] && dfs(removed | (1 << i), dp, i)) return true;
+    }
+    return dp < deck.length && dfs(removed, dp + 1, n + 1 + dp);
+  };
+  try { return dfs(0, 0, n); } catch (e) { return null; }
+}
+
+function deal(pack, layoutKey) {
+  const slots = buildSlots(layoutKey);
+  const n = slots.length;
+  const deckN = Math.min(LAYOUTS[layoutKey].deck, pack.cards.length - n - 1);
+  let best = null, solvable = false;
+  const t0 = performance.now();
+  for (let attempt = 0; attempt < 80; attempt++) {
+    const sub = pickSubset(pack.cards, n + 1 + deckN);
+    best = { table: sub.slice(0, n), start: sub[n], deck: sub.slice(n + 1) };
+    if (!settings.solvable) break;
+    if (solve(slots, best.table, best.start, best.deck, 30000) === true) { solvable = true; break; }
+    if (performance.now() - t0 > 1200) break;
+  }
+  return {
+    packId: pack.id, layoutKey, slots, table: best.table, removed: new Array(n).fill(false),
+    deck: best.deck, deckPos: 0, active: best.start, score: 0, combo: 0, bestCombo: 0,
+    hints: 0, wrong: 0, chain: [{ type: 'start', card: best.start }], history: [], over: false, solvable
+  };
+}
+
+// ---------- Game state ----------
+let G = null, busy = false;
+const pack = () => packById(G.packId);
+const exposed = i => !G.removed[i] && G.slots[i].coveredBy.every(j => G.removed[j]);
+const playable = i => exposed(i) && shared(G.active, G.table[i]).length > 0;
+const playableList = () => G.slots.map((_, i) => i).filter(playable);
+
+function saveGame() {
+  if (!G) return;
+  store.set('game', {
+    packId: G.packId, layoutKey: G.layoutKey, table: G.table.map(c => c.uid), removed: G.removed,
+    deck: G.deck.map(c => c.uid), deckPos: G.deckPos, active: G.active.uid, score: G.score, combo: G.combo,
+    bestCombo: G.bestCombo, hints: G.hints, wrong: G.wrong, over: G.over, solvable: G.solvable,
+    chain: G.chain.map(e => ({ type: e.type, card: e.card && e.card.uid, from: e.from && e.from.uid, to: e.to && e.to.uid, via: e.via }))
+  });
+}
+function loadGame() {
+  const s = store.get('game', null);
+  if (!s || !packById(s.packId) || !LAYOUTS[s.layoutKey]) return null;
+  const c = uid => CARD_BY_UID.get(uid);
+  const cards = [...s.table, ...s.deck, s.active].map(c);
+  if (cards.some(x => !x)) return null;
+  return {
+    ...s, slots: buildSlots(s.layoutKey), table: s.table.map(c), deck: s.deck.map(c), active: c(s.active), history: [],
+    chain: s.chain.map(e => ({ type: e.type, card: e.card && c(e.card), from: e.from && c(e.from), to: e.to && c(e.to), via: e.via }))
+  };
+}
+
+const snapshot = () => ({ removed: G.removed.slice(), deckPos: G.deckPos, active: G.active, score: G.score, combo: G.combo, bestCombo: G.bestCombo, chainLen: G.chain.length, over: G.over });
+function undo() {
+  if (busy || !G || !G.history.length) return;
+  const s = G.history.pop();
+  Object.assign(G, { removed: s.removed, deckPos: s.deckPos, active: s.active, score: s.score, combo: s.combo, bestCombo: s.bestCombo, over: s.over });
+  G.chain.length = s.chainLen;
+  $('#result').classList.add('hidden');
+  render(); saveGame();
+}
+
+function startGame(packId) {
+  const p = packById(packId);
+  G = deal(p, chooseLayout(p));
+  const stats = store.get('stats', {});
+  stats[p.id] = stats[p.id] || { plays: 0, wins: 0, best: 0 };
+  stats[p.id].plays++;
+  store.set('stats', stats);
+  hideOverlays();
+  render(); saveGame();
+  if (settings.solvable && !G.solvable) toast('이 팩은 연결이 적어 해답 보장 없이 딜링했어요', 'bad');
+}
+
+function tapCard(i, el) {
+  if (busy || !G || G.over || !exposed(i)) return;
+  const card = G.table[i];
+  const via = shared(G.active, card);
+  if (!via.length) {
+    G.wrong++; G.score = Math.max(0, G.score - 5);
+    el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake');
+    toast(`<b>${esc(G.active.text)}</b> ↔ <b>${esc(card.text)}</b> 공통 고리 없음 (−5)`, 'bad');
+    updateHud(); saveGame();
+    return;
+  }
+  G.history.push(snapshot());
+  busy = true;
+  fly(el, $('#waste'), () => {
+    G.removed[i] = true;
+    G.combo++;
+    G.bestCombo = Math.max(G.bestCombo, G.combo);
+    G.score += 10 * G.combo;
+    G.chain.push({ type: 'match', from: G.active, to: card, via });
+    G.active = card;
+    busy = false;
+    render();
+    burst();
+    toast('🔗 공통 고리: <b>' + via.map(t => esc(tagLabel(pack(), t))).join(', ') + '</b>' + (G.combo > 1 ? `  · ${G.combo}콤보` : ''), 'good');
+    checkEnd(); saveGame();
+  });
+}
+
+function draw() {
+  if (busy || !G || G.over) return;
+  if (G.deckPos >= G.deck.length) { toast('덱이 비었어요', 'bad'); return; }
+  G.history.push(snapshot());
+  G.active = G.deck[G.deckPos++];
+  G.combo = 0;
+  G.chain.push({ type: 'draw', card: G.active });
+  render(); checkEnd(); saveGame();
+}
+
+function hint() {
+  if (busy || !G || G.over) return;
+  const list = playableList();
+  G.hints++; G.score = Math.max(0, G.score - 20);
+  if (list.length) {
+    const el = document.querySelector(`#field .card[data-slot="${list[0]}"]`);
+    if (el) { el.classList.remove('hint'); void el.offsetWidth; el.classList.add('hint'); }
+    toast('연결 가능한 카드가 있어요 (−20)');
+  } else {
+    const st = $('#stock'); st.classList.remove('hint'); void st.offsetWidth; st.classList.add('hint');
+    toast('필드에 연결할 카드가 없어요 — 덱에서 뽑으세요 (−20)');
+  }
+  updateHud(); saveGame();
+}
+
+function checkEnd() {
+  if (G.removed.every(Boolean)) {
+    G.score += (G.deck.length - G.deckPos) * 20;
+    return endGame(true);
+  }
+  if (G.deckPos >= G.deck.length && !playableList().length) endGame(false);
+}
+
+function endGame(won) {
+  G.over = true;
+  const stats = store.get('stats', {});
+  const s = stats[G.packId] = stats[G.packId] || { plays: 0, wins: 0, best: 0 };
+  if (won) s.wins++;
+  s.best = Math.max(s.best, G.score);
+  store.set('stats', stats);
+  updateHud(); saveGame();
+  setTimeout(() => showResult(won), won ? 500 : 700);
+}
+
+// ---------- Rendering ----------
+function cardEl(c, up) {
+  const el = document.createElement('div');
+  el.className = 'card ' + (up ? 'up' : 'down');
+  if (up) {
+    el.style.setProperty('--c', CAT_COLORS[c.category] || '#8a8f98');
+    el.innerHTML = `<div class="cat">${esc(c.category)}</div><div class="txt">${esc(c.text)}</div>`;
+  } else {
+    el.innerHTML = '<div class="back">M</div>';
+  }
+  return el;
+}
+
+function fitText(root) {
+  root.querySelectorAll('.card.up .txt').forEach(t => {
+    let fs = parseFloat(getComputedStyle(t).fontSize);
+    while (t.scrollHeight > t.clientHeight + 1 && fs > 8) { fs -= 0.5; t.style.fontSize = fs + 'px'; }
+  });
+}
+
+function render() {
+  if (!G) return;
+  const L = LAYOUTS[G.layoutKey], field = $('#field'), tbl = $('#table');
+  const aw = tbl.clientWidth - 16, ah = tbl.clientHeight - 12;
+  const R = L.rows.length, step = 0.52, rowsTall = 1 + (R - 1) * step;
+  const w = Math.floor(Math.min(aw / (L.halfW / 2), ah / (rowsTall * 1.3), 128));
+  // 좁은 화면에선 폭이 먼저 막히므로 남는 세로 공간만큼 카드를 길게 (최대 1.7배)
+  const h = Math.round(w * Math.max(1.3, Math.min(1.7, ah / rowsTall / w))), unit = w / 2, gap = 2;
+  field.style.width = unit * L.halfW + 'px';
+  field.style.height = h + (R - 1) * h * step + 'px';
+  field.innerHTML = '';
+  const showPlayable = settings.showTags;
+  G.slots.forEach((s, i) => {
+    if (G.removed[i]) return;
+    const up = exposed(i);
+    const el = cardEl(G.table[i], up);
+    Object.assign(el.style, {
+      left: s.x * unit + gap + 'px', top: s.row * h * step + 'px', width: w - gap * 2 + 'px', height: h + 'px',
+      zIndex: 10 + s.row, fontSize: Math.max(9, Math.min(15, w * 0.155)) + 'px'
+    });
+    el.dataset.slot = i;
+    if (up && showPlayable && playable(i)) el.classList.add('show-playable');
+    field.appendChild(el);
+  });
+  fitText(field);
+
+  const waste = $('#waste');
+  waste.innerHTML = '';
+  const act = cardEl(G.active, true);
+  waste.appendChild(act);
+  $('#tray').classList.toggle('with-tags', settings.showTags);
+  if (settings.showTags) {
+    const chips = document.createElement('div');
+    chips.className = 'tagchips';
+    chips.innerHTML = G.active.tags.map(t => `<span>${esc(tagLabel(pack(), t))}</span>`).join('');
+    waste.appendChild(chips);
+  }
+  fitText(waste);
+
+  const left = G.deck.length - G.deckPos;
+  $('#stockCount').textContent = left;
+  $('#stock').classList.toggle('empty', left === 0);
+  $('#btnUndo').disabled = !G.history.length;
+  updateHud();
+}
+
+function updateHud() {
+  const p = pack();
+  $('#packName').textContent = p.name;
+  const remain = G.removed.filter(r => !r).length;
+  $('#hudSub').textContent = `${LAYOUTS[G.layoutKey].name} · 남은 카드 ${remain}장`;
+  $('#score').textContent = G.score;
+  $('#combo').textContent = G.combo;
+  $('#combo').classList.toggle('hot', G.combo >= 3);
+}
+
+function fly(el, target, done) {
+  const a = el.getBoundingClientRect(), b = target.getBoundingClientRect();
+  const clone = el.cloneNode(true);
+  Object.assign(clone.style, {
+    position: 'fixed', left: a.left + 'px', top: a.top + 'px', width: a.width + 'px', height: a.height + 'px',
+    zIndex: 1000, transition: 'transform .28s cubic-bezier(.2,.8,.2,1)', transformOrigin: 'center'
+  });
+  document.body.appendChild(clone);
+  el.style.visibility = 'hidden';
+  void clone.offsetWidth;
+  const dx = b.left + b.width / 2 - (a.left + a.width / 2), dy = b.top + b.height / 2 - (a.top + a.height / 2);
+  clone.style.transform = `translate(${dx}px, ${dy}px) scale(${b.width / a.width})`;
+  setTimeout(() => { clone.remove(); done(); }, 290);
+}
+
+function burst() {
+  const r = $('#waste').getBoundingClientRect();
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  const colors = ['#f2c35b', '#7be0a6', '#ffffff', '#ff9e7a'];
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement('div');
+    s.className = 'spark';
+    const ang = Math.random() * Math.PI * 2, dist = 50 + Math.random() * 60;
+    Object.assign(s.style, { left: cx + 'px', top: cy + 'px', background: colors[i % colors.length] });
+    s.style.setProperty('--dx', Math.cos(ang) * dist + 'px');
+    s.style.setProperty('--dy', Math.sin(ang) * dist + 'px');
+    document.body.appendChild(s);
+    setTimeout(() => s.remove(), 650);
+  }
+}
+
+let toastTimer;
+function toast(html, kind) {
+  const t = $('#toast');
+  t.className = 'toast ' + (kind || '');
+  t.innerHTML = html;
+  const tray = $('#tray').getBoundingClientRect();
+  t.style.bottom = (window.innerHeight - tray.top + 10) + 'px';
+  void t.offsetWidth;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ---------- Screens ----------
+function hideOverlays() { ['#menu', '#result', '#importer'].forEach(s => $(s).classList.add('hidden')); }
+
+function showMenu() {
+  const stats = store.get('stats', {});
+  $('#packList').innerHTML = PACKS.map(p => {
+    const s = stats[p.id];
+    const meta = [p.subject, p.cards.length + '장', s && s.best ? `최고 ${s.best}점` : '', s && s.wins ? `클리어 ${s.wins}회` : ''].filter(Boolean).join(' · ');
+    return `<button class="pack" data-pack="${esc(p.id)}"><div><div class="pname">${esc(p.name)}</div><div class="pmeta">${esc(meta)}</div></div><span class="go">▶</span></button>`;
+  }).join('');
+  $('#btnResume').classList.toggle('hidden', !G || G.over);
+  $('#optLayout').value = settings.layout;
+  $('#optTags').checked = settings.showTags;
+  $('#optSolvable').checked = settings.solvable;
+  hideOverlays();
+  $('#menu').classList.remove('hidden');
+}
+
+function showResult(won) {
+  const matches = G.chain.filter(e => e.type === 'match');
+  $('#resultTitle').textContent = won ? '🎉 클리어!' : '막혔어요';
+  $('#resultSub').textContent = won ? '필드의 모든 카드를 연결했어요' : `덱이 비었고 필드에 ${G.removed.filter(r => !r).length}장이 남았어요`;
+  $('#rScore').textContent = G.score;
+  $('#rCombo').textContent = G.bestCombo;
+  $('#rLinks').textContent = matches.length;
+  $('#rWrong').textContent = G.wrong;
+  const p = pack();
+  const left = G.table.filter((_, i) => !G.removed[i]);
+  $('#leftWrap').classList.toggle('hidden', !left.length);
+  $('#leftList').innerHTML = left.map(c => `<span>${esc(c.text)} <small>(${c.tags.map(t => esc(tagLabel(p, t))).join(', ')})</small></span>`).join('');
+  $('#chainList').innerHTML = G.chain.map(e => {
+    if (e.type === 'start') return `<li class="draw">시작: ${esc(e.card.text)}</li>`;
+    if (e.type === 'draw') return `<li class="draw">🂠 덱에서 뽑음: ${esc(e.card.text)}</li>`;
+    return `<li class="match">${esc(e.from.text)} → <b>${esc(e.to.text)}</b><span class="via">공통: ${e.via.map(t => esc(tagLabel(p, t))).join(', ')}</span></li>`;
+  }).join('');
+  $('#btnResultUndo').classList.toggle('hidden', won || !G.history.length);
+  hideOverlays();
+  $('#result').classList.remove('hidden');
+  $('#result').scrollTop = 0;
+}
+
+// ---------- Importer ----------
+const PROMPT = `너는 한국 의사국가고시(KMLE) 학습용 카드 데이터를 만드는 도우미야.
+아래 [단원] 내용에서 핵심 개념 35~50개를 뽑아서, 설명 없이 JSON 하나로만 답해줘.
+
+형식:
+{
+  "tagLabels": { "영문_식별자": "한글 설명" },
+  "cards": [
+    { "text": "핵심 용어 (20자 이내)", "category": "질환|원인|위험인자|병태생리|검사소견|임상상|진단|치료|합병증 중 하나", "tags": ["영문_식별자"] }
+  ]
+}
+
+규칙:
+- 원인 → 병태생리 → 검사소견 → 진단 → 치료 → 합병증 고리가 이어지도록, 서로 연관된 카드끼리 tag를 최소 1개 공유할 것
+- 카드당 tag 1~3개, 각 tag는 최소 3장 이상의 카드에 등장할 것
+- "내과"처럼 너무 넓은 tag 금지 (모든 카드가 서로 연결되면 게임이 너무 쉬워짐)
+- 카드 text는 중복 금지, 교과서 기준으로 사실관계가 정확할 것
+- tagLabels에는 사용한 모든 tag의 한글 설명을 넣을 것
+
+[단원]
+(여기에 서머리 노트를 붙여넣기)`;
+
+function parseImport(raw) {
+  const txt = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
+  let data;
+  try { data = JSON.parse(txt); } catch (e) { throw new Error('JSON 형식이 올바르지 않아요: ' + e.message); }
+  const cards = Array.isArray(data) ? data : data.cards;
+  if (!Array.isArray(cards)) throw new Error('"cards" 배열을 찾지 못했어요');
+  const clean = cards.filter(c => c && typeof c.text === 'string' && c.text.trim() && Array.isArray(c.tags) && c.tags.length)
+    .map(c => ({ text: c.text.trim(), category: typeof c.category === 'string' ? c.category.trim() : '', tags: [...new Set(c.tags.map(String))] }));
+  const minCards = tableSize('pyramid') + 1 + 6;
+  if (clean.length < minCards) throw new Error(`유효한 카드가 ${clean.length}장이에요. 최소 ${minCards}장 필요해요 (text와 tags가 있어야 함)`);
+  return { cards: clean, tagLabels: (!Array.isArray(data) && data.tagLabels && typeof data.tagLabels === 'object') ? data.tagLabels : {}, name: !Array.isArray(data) && data.name };
+}
+
+function showImporter() {
+  const custom = store.get('customPacks', []);
+  $('#customList').innerHTML = custom.length
+    ? custom.map(p => `<div class="custom-item"><span>${esc(p.name)} <small class="sub">${p.cards.length}장</small></span><button class="btn" data-del="${esc(p.id)}">삭제</button></div>`).join('')
+    : '<div class="sub">아직 없어요</div>';
+  $('#impMsg').textContent = '';
+  hideOverlays();
+  $('#importer').classList.remove('hidden');
+}
+
+async function copyPrompt() {
+  try { await navigator.clipboard.writeText(PROMPT); }
+  catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = PROMPT; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch (_) {}
+    ta.remove();
+  }
+  const m = $('#impMsg'); m.className = 'msg ok'; m.textContent = '프롬프트를 복사했어요. [단원] 아래에 노트를 붙여넣어 쓰세요.';
+}
+
+function saveImport() {
+  const m = $('#impMsg');
+  try {
+    const parsed = parseImport($('#impJson').value);
+    const name = $('#impName').value.trim() || parsed.name || '내 카드팩';
+    const custom = store.get('customPacks', []);
+    custom.push({ id: 'custom-' + Date.now(), name, subject: '내 카드팩', tagLabels: parsed.tagLabels, cards: parsed.cards });
+    store.set('customPacks', custom);
+    loadPacks();
+    $('#impJson').value = ''; $('#impName').value = '';
+    showImporter();
+    m.className = 'msg ok'; m.textContent = `"${name}" 저장 완료 (${parsed.cards.length}장). 메뉴에서 선택하세요.`;
+  } catch (e) {
+    m.className = 'msg err'; m.textContent = e.message;
+  }
+}
+
+// ---------- Wiring ----------
+$('#field').addEventListener('click', e => {
+  const el = e.target.closest('.card.up');
+  if (el) tapCard(+el.dataset.slot, el);
+});
+$('#stock').addEventListener('click', draw);
+$('#btnUndo').addEventListener('click', undo);
+$('#btnHint').addEventListener('click', hint);
+$('#btnNew').addEventListener('click', () => G && startGame(G.packId));
+$('#btnMenu').addEventListener('click', showMenu);
+$('#btnResume').addEventListener('click', () => { hideOverlays(); render(); });
+$('#packList').addEventListener('click', e => { const b = e.target.closest('[data-pack]'); if (b) startGame(b.dataset.pack); });
+$('#optLayout').addEventListener('change', e => { settings.layout = e.target.value; saveSettings(); });
+$('#optTags').addEventListener('change', e => { settings.showTags = e.target.checked; saveSettings(); });
+$('#optSolvable').addEventListener('change', e => { settings.solvable = e.target.checked; saveSettings(); });
+$('#btnAgain').addEventListener('click', () => startGame(G.packId));
+$('#btnResultUndo').addEventListener('click', undo);
+$('#btnToMenu').addEventListener('click', showMenu);
+$('#btnImport').addEventListener('click', showImporter);
+$('#btnImpClose').addEventListener('click', showMenu);
+$('#btnImpSave').addEventListener('click', saveImport);
+$('#btnCopyPrompt').addEventListener('click', copyPrompt);
+$('#customList').addEventListener('click', e => {
+  const b = e.target.closest('[data-del]');
+  if (!b || !confirm('이 카드팩을 삭제할까요?')) return;
+  store.set('customPacks', store.get('customPacks', []).filter(p => p.id !== b.dataset.del));
+  if (G && G.packId === b.dataset.del) { G = null; store.del('game'); }
+  loadPacks(); showImporter();
+});
+let resizeTimer;
+window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 120); });
+
+loadPacks();
+G = loadGame();
+if (G && !G.over) { hideOverlays(); render(); } else { if (G) render(); showMenu(); }
+
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+window.__meditaire = { get G() { return G; }, solve, deal, packById, buildSlots, tableSize };
+})();
+</script>
+</body>
+</html>
