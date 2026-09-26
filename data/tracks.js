@@ -4,5 +4,14 @@ window.MEDITAIRE_TRACK_FILES = [
   'heme.js',
   'endo.js',
   'gi.js',
-  'cardio.js'
+  'cardio.js',
+  'resp.js',
+  'neph.js',
+  'uro.js',
+  'infect.js',
+  'peds.js',
+  'obgy.js',
+  'ortho.js',
+  'derm.js',
+  'ent.js'
 ];

@@ -1,5 +1,5 @@
 // 오프라인 캐시: 캐시에서 먼저 응답하고, 온라인이면 백그라운드로 최신 파일을 받아 둔다.
-const CACHE = 'meditaire-v4';
+const CACHE = 'meditaire-v5';
 // 과목 파일 목록은 data/tracks.js에서 읽어 함께 캐시한다
 self.window = self;
 try { importScripts('data/tracks.js'); } catch (e) {}
