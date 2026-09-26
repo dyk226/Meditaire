@@ -1,5 +1,5 @@
 // 오프라인 캐시: 캐시에서 먼저 응답하고, 온라인이면 백그라운드로 최신 파일을 받아 둔다.
-const CACHE = 'meditaire-v1';
+const CACHE = 'meditaire-v2';
 const ASSETS = ['./', 'index.html', 'packs.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-180.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {
