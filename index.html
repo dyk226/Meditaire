@@ -99,7 +99,6 @@ button { font: inherit; color: inherit; cursor: pointer; }
 @keyframes pulse { 0%,100% { box-shadow: var(--shadow); } 50% { box-shadow: 0 0 0 4px var(--gold), 0 0 18px var(--gold); } }
 .ghost { position: fixed; left: 0; top: 0; z-index: 500; pointer-events: none; }
 .ghost .card { transition: none; box-shadow: 0 8px 20px rgba(0,0,0,.45); }
-.drop-ok { outline: 3px solid var(--good); outline-offset: 1px; }
 
 /* Actions */
 #actions { display: flex; gap: 8px; justify-content: center; padding: 8px 12px calc(10px + var(--safe-b)); background: rgba(0,0,0,.18); }
@@ -179,6 +178,29 @@ input[type=text] { width: 100%; }
 .start { width: 100%; padding: 16px; font-size: 17px; }
 .celebrate { position: absolute; z-index: 400; animation: pop .7s ease-out forwards; }
 @keyframes pop { 0% { transform: scale(1); opacity: 1; } 60% { transform: scale(1.12); opacity: 1; } 100% { transform: scale(.6); opacity: 0; } }
+/* 코인 · 하트 · 퀴즈 */
+.wallet { display: flex; gap: 10px; justify-content: center; margin: 4px 0 14px; }
+.wallet div { flex: 1; background: rgba(255,255,255,.07); border-radius: 12px; padding: 10px; text-align: center; }
+.wallet b { display: block; font-size: 20px; }
+.wallet span { font-size: 12px; color: var(--muted); }
+.hearts { color: #ff6b7a; letter-spacing: 1px; }
+.hearts .off { color: rgba(255,255,255,.18); }
+.earned { font-size: 18px; font-weight: 800; color: var(--gold); margin-top: 10px; }
+.btn:disabled { opacity: .4; }
+.btn .cost { font-size: 12px; opacity: .8; margin-left: 4px; }
+.quiz-top { display: flex; justify-content: space-between; align-items: center; margin: 8px 0 12px; }
+.streak { display: flex; gap: 6px; }
+.streak i { width: 14px; height: 14px; border-radius: 50%; background: rgba(255,255,255,.15); }
+.streak i.on { background: var(--good); }
+.timer { height: 8px; border-radius: 99px; background: rgba(255,255,255,.1); overflow: hidden; margin-bottom: 14px; }
+.timer div { height: 100%; background: var(--gold); width: 100%; transform-origin: left; }
+.qtext { font-size: 19px; font-weight: 700; line-height: 1.45; margin: 6px 0 16px; min-height: 56px; }
+.qtext em { font-style: normal; color: var(--topic); }
+.opts { display: grid; gap: 8px; }
+.opt { text-align: left; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); border-radius: 12px; padding: 14px; font-size: 16px; }
+.opt.right { background: rgba(123,224,166,.25); border-color: var(--good); }
+.opt.wrong { background: rgba(255,122,107,.22); border-color: var(--bad); }
+.qmsg { min-height: 24px; margin-top: 12px; font-size: 14px; text-align: center; }
 </style>
 </head>
 <body>
@@ -193,7 +215,7 @@ input[type=text] { width: 100%; }
   </header>
   <main id="board"></main>
   <footer id="actions">
-    <button id="btnUndo">↶ 되돌리기</button>
+    <button id="btnUndo">↶ 되돌리기 <small>🪙600</small></button>
     <button id="btnHint">💡 힌트</button>
     <button id="btnRetry">⟳ 처음부터</button>
   </footer>
@@ -204,8 +226,13 @@ input[type=text] { width: 100%; }
   <div class="panel">
     <div class="logo">Medi<span>taire</span></div>
     <p class="tagline">같은 주제의 키워드끼리 모아 주제 카드를 완성하는 국시 솔리테어</p>
+    <div class="wallet">
+      <div><b id="mHearts" class="hearts"></b><span id="mHeartTimer"></span></div>
+      <div><b id="mCoins">0</b><span>코인</span></div>
+    </div>
     <button id="btnStart" class="btn primary start">시작</button>
     <div id="progressInfo" class="sub" style="margin-top:8px;text-align:center"></div>
+    <button id="btnQuiz" class="btn" style="width:100%;margin-top:10px">⏱ 하트 충전 퀴즈 (5연속 정답 → ❤ +1)</button>
     <h3>연습할 트랙</h3>
     <div id="trackChips" class="chips"></div>
     <div class="sub" style="margin-top:8px">기본은 전체 과목 섞기. 트랙을 바꾸면 지금 단계를 새 카드로 다시 시작해요.</div>
@@ -219,6 +246,8 @@ input[type=text] { width: 100%; }
       <li>주제 카드는 B의 <b>빈 칸</b>이나 <b>같은 주제 키워드 뭉치 위</b>에 놓을 수 있어요. 하지만 B에서 주제 카드 위에는 아무것도 못 올려요 — 키워드를 주제 카드 위에 모으는 건 A에서만.</li>
       <li>각 단계는 <b>정해진 이동 횟수</b> 안에 모든 주제를 완성해야 클리어! 덱을 넘기는 것도 1번으로 세요.</li>
       <li>난이도는 단계마다 무작위: 쉬움 25% · 보통 55% · 어려움 20% (어려움은 5칸).</li>
+      <li>클리어하면 <b>남은 이동 × 5 코인</b>. 코인으로 되돌리기(600)나 이동 +10(2500)을 살 수 있어요.</li>
+      <li>이동을 다 쓰고 포기하면 <b>하트 −1</b>. 하트는 30분마다 1개씩 차거나, 10초 퀴즈를 5개 연속 맞히면 1개 채워져요.</li>
     </ol>
   </div>
 </section>
@@ -232,9 +261,27 @@ input[type=text] { width: 100%; }
       <div><b id="rDone">0</b><span>완성한 주제</span></div>
       <div><b id="rStage">0</b><span>단계</span></div>
     </div>
+    <div id="resultEarned" class="earned"></div>
     <div id="resultButtons" class="btn-row"></div>
-    <h3>이번 판 주제 복습</h3>
-    <div id="review" class="review"></div>
+    <div id="reviewWrap">
+      <h3>이번 판 주제 복습</h3>
+      <div id="review" class="review"></div>
+    </div>
+  </div>
+</section>
+
+<section id="quiz" class="overlay hidden">
+  <div class="panel">
+    <div class="logo" style="font-size:24px">하트 충전 퀴즈</div>
+    <div class="quiz-top">
+      <div><span id="qHearts" class="hearts"></span></div>
+      <div class="streak" id="qStreak"></div>
+    </div>
+    <div class="timer"><div id="qTimer"></div></div>
+    <div id="qText" class="qtext"></div>
+    <div id="qOpts" class="opts"></div>
+    <div id="qMsg" class="qmsg"></div>
+    <div class="btn-row"><button id="btnQuizClose" class="btn">그만하기</button></div>
   </div>
 </section>
 
@@ -472,36 +519,107 @@ function newStage(stage) {
     if (best !== null) break;
   }
   const limit = best !== null ? Math.ceil(best * DIFFS[diff].slack) + 5 : 250;
-  const g = { ...s, stage, diff, trackIds, limit, over: false, won: false, history: [] };
+  const g = { ...s, stage, diff, trackIds, limit, baseLimit: limit, over: false, won: false, fail: null, settled: false, history: [] };
   g.initial = snapshot(g);
   return g;
 }
 
 // ---------- Game (UI 상태) ----------
 let G = null, busy = false;
-const progress = Object.assign({ stage: 1, cleared: 0 }, store.get('progress', {}));
+const MAX_HEARTS = 5, HEART_MS = 30 * 60 * 1000;
+const COST_UNDO = 600, COST_MOVES = 2500, EXTRA_MOVES = 10, COIN_PER_MOVE = 5;
+const progress = Object.assign({ stage: 1, cleared: 0, coins: 0, hearts: MAX_HEARTS, heartFrom: Date.now() }, store.get('progress', {}));
 const saveProgress = () => store.set('progress', progress);
 function snapshot(s) { return JSON.stringify({ cols: s.cols, slots: s.slots, stock: s.stock, waste: s.waste, completed: s.completed, moves: s.moves, over: s.over, won: s.won }); }
 const saveGame = () => { if (G) store.set('game', { ...G, history: G.history.slice(-80) }); };
 const pushHistory = () => { G.history.push(snapshot(G)); if (G.history.length > 400) G.history.shift(); };
 
+// 하트: 가득 차 있지 않으면 heartFrom부터 30분마다 1개씩 회복
+function syncHearts() {
+  const now = Date.now();
+  if (progress.hearts >= MAX_HEARTS) { progress.heartFrom = now; return; }
+  const n = Math.floor((now - progress.heartFrom) / HEART_MS);
+  if (n > 0) {
+    progress.hearts = Math.min(MAX_HEARTS, progress.hearts + n);
+    progress.heartFrom = progress.hearts >= MAX_HEARTS ? now : progress.heartFrom + n * HEART_MS;
+    saveProgress();
+  }
+}
+function loseHeart() {
+  syncHearts();
+  if (progress.hearts >= MAX_HEARTS) progress.heartFrom = Date.now();
+  progress.hearts = Math.max(0, progress.hearts - 1);
+  saveProgress();
+}
+function gainHeart() {
+  syncHearts();
+  progress.hearts = Math.min(MAX_HEARTS, progress.hearts + 1);
+  if (progress.hearts >= MAX_HEARTS) progress.heartFrom = Date.now();
+  saveProgress();
+}
+const heartsHtml = () => '♥'.repeat(progress.hearts) + `<span class="off">${'♥'.repeat(MAX_HEARTS - progress.hearts)}</span>`;
+function heartTimerText() {
+  syncHearts();
+  if (progress.hearts >= MAX_HEARTS) return '하트 가득';
+  const ms = Math.max(0, progress.heartFrom + HEART_MS - Date.now());
+  const m = Math.floor(ms / 60000), sec = Math.floor(ms / 1000) % 60;
+  return `다음 하트까지 ${m}:${String(sec).padStart(2, '0')}`;
+}
+function spend(cost) {
+  if (progress.coins < cost) { toast(`코인이 부족해요 (🪙${cost} 필요, 보유 ${progress.coins})`, 'bad'); return false; }
+  progress.coins -= cost;
+  saveProgress();
+  return true;
+}
+
 function undo() {
   if (busy || !G || !G.history.length) return;
-  Object.assign(G, JSON.parse(G.history.pop()));
+  if (!spend(COST_UNDO)) return;
+  Object.assign(G, JSON.parse(G.history.pop()), { fail: null });
   hideOverlays();
   render(); saveGame();
+  toast(`↶ 되돌렸어요 (−🪙${COST_UNDO})`);
 }
+function buyMoves() {
+  if (!G || G.fail !== 'moves' || !spend(COST_MOVES)) return;
+  G.limit += EXTRA_MOVES;
+  G.over = false; G.fail = null;
+  hideOverlays();
+  render(); saveGame();
+  toast(`이동 +${EXTRA_MOVES} (−🪙${COST_MOVES})`, 'good');
+}
+function giveUp() {
+  if (!G || !G.over || G.won || G.settled) return;
+  loseHeart();
+  G.settled = true;
+  saveGame(); showResult();
+}
+// 같은 판 처음부터 (하트가 있어야 함)
 function retry() {
   if (!G) return;
-  Object.assign(G, JSON.parse(G.initial), { history: [] });
+  syncHearts();
+  if (progress.hearts <= 0) return openQuiz();
+  Object.assign(G, JSON.parse(G.initial), { history: [], limit: G.baseLimit || G.limit, fail: null, settled: false });
   hideOverlays();
   render(); saveGame();
 }
 function startStage() {
+  syncHearts();
+  if (progress.hearts <= 0) { toast('하트가 없어요 — 기다리거나 퀴즈로 채우세요', 'bad'); return openQuiz(); }
   G = newStage(progress.stage);
   hideOverlays();
   render(); saveGame();
   toast(`단계 ${G.stage} · <b>${DIFFS[G.diff].name}</b> · ${G.limit}번 안에 클리어`);
+}
+// 진행 중인 단계를 버리는 건 포기와 같음 → 하트 −1
+const inProgress = () => G && !G.over && G.moves > 0;
+function abandon(msg) {
+  if (!inProgress()) return true;
+  if (!confirm(msg + '\n진행 중인 단계를 포기하면 하트 1개가 줄어요.')) return false;
+  loseHeart();
+  G.over = true; G.settled = true;
+  saveGame();
+  return true;
 }
 
 function doMove(src, dst) {
@@ -521,15 +639,21 @@ function doDraw() {
 
 function after() {
   if (G.completed.length === G.topics.length) { G.won = true; finish(); }
-  else if (G.moves >= G.limit) finish('이동 횟수를 다 썼어요');
-  else if (!anyProgress(G)) finish('더 이상 둘 곳이 없어요');
+  else if (G.moves >= G.limit) finish('moves');
+  else if (!anyProgress(G)) finish('stuck');
   render(); saveGame();
 }
 
-function finish(reason) {
+function finish(fail) {
   G.over = true;
-  G.reason = reason || '';
-  if (G.won) { progress.stage = G.stage + 1; progress.cleared++; saveProgress(); }
+  G.fail = fail || null;
+  if (G.won) {
+    G.earned = (G.limit - G.moves) * COIN_PER_MOVE;
+    progress.coins += G.earned;
+    progress.stage = G.stage + 1; progress.cleared++;
+    G.settled = true;
+    saveProgress();
+  }
   busy = true;
   setTimeout(() => { busy = false; showResult(); }, G.won ? 900 : 600);
 }
@@ -669,12 +793,13 @@ function render() {
 
   fitText(board);
   $('#stageName').innerHTML = `단계 ${G.stage}<span class="diff ${G.diff}">${DIFFS[G.diff].name}</span>`;
-  $('#hudSub').textContent = trackLabel(G.trackIds);
+  syncHearts();
+  $('#hudSub').innerHTML = `<span class="hearts">♥</span>${progress.hearts} · 🪙${progress.coins.toLocaleString()} · ${esc(trackLabel(G.trackIds))}`;
   const left = Math.max(0, G.limit - G.moves);
   $('#left').textContent = left;
   $('#left').classList.toggle('low', left <= 5);
   $('#done').textContent = `${G.completed.length}/${G.topics.length}`;
-  $('#btnUndo').disabled = !G.history.length || G.over;
+  $('#btnUndo').disabled = !G.history.length || G.over || progress.coins < COST_UNDO;
 }
 
 function fitText(root) {
@@ -742,12 +867,6 @@ board.addEventListener('pointermove', e => {
     startDrag();
   }
   drag.ghost.style.transform = `translate(${e.clientX - drag.dx}px, ${e.clientY - drag.dy}px)`;
-  const tgt = dropTargetAt(e.clientX, e.clientY);
-  if (drag.hover !== tgt) {
-    document.querySelectorAll('.drop-ok').forEach(x => x.classList.remove('drop-ok'));
-    drag.hover = tgt;
-    if (tgt && canDrop(G, drag.src, tgt)) { const t = [...board.querySelectorAll(`[data-drop="${tgt}"]`)].pop(); if (t) t.classList.add('drop-ok'); }
-  }
 });
 board.addEventListener('pointerup', e => {
   if (!drag || drag.pid !== e.pointerId) return;
@@ -789,30 +908,45 @@ function dropTargetAt(x, y) {
 }
 
 // ---------- Screens ----------
-function hideOverlays() { ['#menu', '#result', '#importer'].forEach(s => $(s).classList.add('hidden')); }
+function hideOverlays() { ['#menu', '#result', '#importer', '#quiz'].forEach(s => $(s).classList.add('hidden')); }
 
 const canResume = () => G && !G.over && sameSet(G.trackIds, selectedTracks());
 function showMenu() {
   const sel = settings.tracks.filter(trackById);
   const chip = (id, label, on, count) => `<button class="chip ${on ? 'on' : ''}" data-track="${esc(id)}">${esc(label)}${count != null ? ` <small>${count}</small>` : ''}</button>`;
   $('#trackChips').innerHTML = chip('*', '전체', !sel.length) + TRACKS.map(t => chip(t.id, t.name, sel.includes(t.id), t.topics.length)).join('');
+  syncHearts();
   $('#btnStart').textContent = canResume() ? `단계 ${G.stage} 이어하기` : `단계 ${progress.stage} 시작`;
   $('#progressInfo').textContent = progress.cleared ? `지금까지 ${progress.cleared}단계 클리어` : '';
+  $('#mHearts').innerHTML = heartsHtml();
+  $('#mHeartTimer').textContent = heartTimerText();
+  $('#mCoins').textContent = progress.coins.toLocaleString();
+  $('#btnQuiz').disabled = progress.hearts >= MAX_HEARTS;
   hideOverlays();
   $('#menu').classList.remove('hidden');
 }
 
 function showResult() {
   const won = G.won;
+  syncHearts();
+  const reason = { moves: '이동 횟수를 다 썼어요', stuck: '더 이상 둘 곳이 없어요' }[G.fail] || '포기했어요';
   $('#resultTitle').textContent = won ? `🎉 단계 ${G.stage} 클리어!` : `단계 ${G.stage} 실패`;
-  $('#resultSub').textContent = won ? `이동 ${G.limit - G.moves}번을 남기고 모든 주제를 완성했어요` : G.reason;
+  $('#resultSub').textContent = won ? `이동 ${G.limit - G.moves}번을 남기고 모든 주제를 완성했어요` : (G.settled ? `하트 1개를 잃었어요 · 남은 하트 ${progress.hearts}` : reason);
+  $('#resultEarned').textContent = won ? `🪙 +${G.earned || 0} 코인  (보유 ${progress.coins.toLocaleString()})` : '';
   $('#rMoves').textContent = `${G.moves}/${G.limit}`;
   $('#rDone').textContent = `${G.completed.length}/${G.topics.length}`;
   $('#rStage').textContent = G.stage;
-  const btn = (id, label, primary) => `<button class="btn ${primary ? 'primary' : ''}" data-act="${id}">${label}</button>`;
-  $('#resultButtons').innerHTML = won
-    ? btn('next', `단계 ${G.stage + 1} 시작`, true) + btn('menu', '메뉴')
-    : btn('retry', '같은 판 다시 도전', true) + (G.reason.startsWith('더') && G.history.length ? btn('undo', '한 수 되돌리기') : '') + btn('menu', '메뉴');
+  const btn = (id, label, primary, disabled) => `<button class="btn ${primary ? 'primary' : ''}" data-act="${id}" ${disabled ? 'disabled' : ''}>${label}</button>`;
+  let html;
+  if (won) html = btn('next', `단계 ${G.stage + 1} 시작`, true) + btn('menu', '메뉴');
+  else if (!G.settled && G.fail === 'moves')
+    html = btn('buy', `이동 +${EXTRA_MOVES}<span class="cost">🪙${COST_MOVES}</span>`, true, progress.coins < COST_MOVES) + btn('giveup', '포기하기<span class="cost">♥ −1</span>');
+  else if (!G.settled && G.fail === 'stuck')
+    html = btn('undo', `되돌리기<span class="cost">🪙${COST_UNDO}</span>`, true, progress.coins < COST_UNDO || !G.history.length) + btn('giveup', '포기하기<span class="cost">♥ −1</span>');
+  else html = (progress.hearts > 0 ? btn('retry', '같은 판 다시 도전', true) : btn('quiz', '하트 충전하기', true)) + btn('menu', '메뉴');
+  $('#resultButtons').innerHTML = html + (!won && !G.settled ? `<div class="sub" style="width:100%;text-align:center">보유 🪙${progress.coins.toLocaleString()} · ♥ ${progress.hearts}</div>` : '');
+  // 이동 추가를 고민하는 중에는 정답(주제별 키워드)을 보여주지 않는다
+  $('#reviewWrap').classList.toggle('hidden', !won && !G.settled);
   $('#review').innerHTML = G.topics.map((t, i) => {
     const done = G.completed.includes(i);
     return `<div class="t ${done ? '' : 'no'}"><b>${done ? '✓ ' : ''}${esc(t.name)}</b> <span class="sub">(${t.n})</span><div class="ws">${t.words.map(esc).join(' · ')}</div></div>`;
@@ -820,6 +954,88 @@ function showResult() {
   hideOverlays();
   $('#result').classList.remove('hidden');
   $('#result').scrollTop = 0;
+}
+
+// ---------- 하트 충전 퀴즈: 10초 객관식, 5연속 정답 → 하트 +1 ----------
+const QUIZ_MS = 10000, QUIZ_STREAK = 5;
+const quiz = { streak: 0, timer: null, raf: 0, q: null, locked: false };
+const pickOne = a => a[Math.floor(Math.random() * a.length)];
+function makeQuestion() {
+  const tracks = selectedTracks().map(trackById).filter(Boolean);
+  const all = tracks.flatMap(t => t.topics.map(tp => ({ ...tp, track: t.id }))).filter(t => t.cards.length);
+  const topic = pickOne(all);
+  const same = all.filter(t => t.track === topic.track && t.name !== topic.name);
+  const others = (same.length >= 3 ? same : all.filter(t => t.name !== topic.name));
+  const distract = shuffle(others.slice()).slice(0, 3);
+  if (Math.random() < 0.5) {
+    const answer = pickOne(topic.cards);
+    return { html: `다음 중 <em>${esc(topic.name)}</em>의 키워드는?`, answer, opts: shuffle([answer, ...distract.map(t => pickOne(t.cards))]) };
+  }
+  const word = pickOne(topic.cards);
+  return { html: `<em>${esc(word)}</em><br>어느 주제의 키워드일까?`, answer: topic.name, opts: shuffle([topic.name, ...distract.map(t => t.name)]) };
+}
+function renderQuizTop() {
+  $('#qHearts').innerHTML = heartsHtml();
+  $('#qStreak').innerHTML = Array.from({ length: QUIZ_STREAK }, (_, i) => `<i class="${i < quiz.streak ? 'on' : ''}"></i>`).join('');
+}
+function openQuiz() {
+  syncHearts();
+  hideOverlays();
+  $('#quiz').classList.remove('hidden');
+  quiz.streak = 0;
+  if (progress.hearts >= MAX_HEARTS) { renderQuizTop(); stopQuizTimer(); $('#qText').textContent = '하트가 가득 찼어요!'; $('#qOpts').innerHTML = ''; $('#qMsg').textContent = ''; return; }
+  nextQuestion();
+}
+function stopQuizTimer() { clearTimeout(quiz.timer); cancelAnimationFrame(quiz.raf); }
+function nextQuestion() {
+  stopQuizTimer();
+  renderQuizTop();
+  quiz.q = makeQuestion();
+  quiz.locked = false;
+  $('#qText').innerHTML = quiz.q.html;
+  $('#qOpts').innerHTML = quiz.q.opts.map((o, i) => `<button class="opt" data-i="${i}">${esc(o)}</button>`).join('');
+  $('#qMsg').textContent = `${QUIZ_STREAK}문제 연속으로 맞히면 하트 +1`;
+  const bar = $('#qTimer'), t0 = performance.now();
+  const tick = () => {
+    const left = Math.max(0, 1 - (performance.now() - t0) / QUIZ_MS);
+    bar.style.transform = `scaleX(${left})`;
+    if (left > 0) quiz.raf = requestAnimationFrame(tick);
+  };
+  tick();
+  quiz.timer = setTimeout(() => answerQuiz(-1), QUIZ_MS);
+}
+function answerQuiz(i) {
+  if (quiz.locked) return;
+  quiz.locked = true;
+  stopQuizTimer();
+  const btns = [...document.querySelectorAll('#qOpts .opt')];
+  const right = quiz.q.opts.indexOf(quiz.q.answer);
+  btns[right].classList.add('right');
+  if (i === right) {
+    quiz.streak++;
+    if (quiz.streak >= QUIZ_STREAK) {
+      quiz.streak = 0;
+      gainHeart();
+      renderQuizTop();
+      $('#qMsg').innerHTML = '<b style="color:var(--good)">♥ 하트 +1!</b>';
+      if (progress.hearts >= MAX_HEARTS) { setTimeout(() => { $('#qText').textContent = '하트가 가득 찼어요!'; $('#qOpts').innerHTML = ''; }, 900); return; }
+      setTimeout(nextQuestion, 1200);
+      return;
+    }
+    renderQuizTop();
+    $('#qMsg').innerHTML = '<span style="color:var(--good)">정답!</span>';
+    setTimeout(nextQuestion, 600);
+  } else {
+    if (i >= 0) btns[i].classList.add('wrong');
+    quiz.streak = 0;
+    renderQuizTop();
+    $('#qMsg').innerHTML = `<span style="color:var(--bad)">${i < 0 ? '시간 초과' : '오답'} — 연속 기록이 초기화됐어요</span>`;
+    setTimeout(nextQuestion, 1800);
+  }
+}
+function closeQuiz() {
+  stopQuizTimer();
+  if (G && G.over && !G.won && G.settled) showResult(); else showMenu();
 }
 
 // ---------- Importer ----------
@@ -903,9 +1119,23 @@ function saveImport() {
 // ---------- Wiring ----------
 $('#btnUndo').addEventListener('click', undo);
 $('#btnHint').addEventListener('click', hint);
-$('#btnRetry').addEventListener('click', () => { if (G && !busy && confirm('이 단계를 처음부터 다시 할까요?')) retry(); });
+$('#btnRetry').addEventListener('click', () => {
+  if (!G || busy || G.over) return;
+  if (!G.moves) return;
+  if (abandon('이 단계를 처음부터 다시 할까요?')) { if (progress.hearts > 0) retry(); else showResult(); }
+});
 $('#btnMenu').addEventListener('click', showMenu);
-$('#btnStart').addEventListener('click', () => { if (canResume()) { hideOverlays(); render(); } else startStage(); });
+$('#btnStart').addEventListener('click', () => {
+  if (canResume()) { hideOverlays(); render(); return; }
+  if (G && G.over && !G.won && !G.settled) return showResult(); // 이동 추가/포기를 먼저 결정
+  if (abandon('트랙이 바뀌어 새 카드로 시작해요.')) startStage();
+});
+$('#btnQuiz').addEventListener('click', openQuiz);
+$('#btnQuizClose').addEventListener('click', closeQuiz);
+$('#qOpts').addEventListener('click', e => { const b = e.target.closest('.opt'); if (b) answerQuiz(+b.dataset.i); });
+setInterval(() => {
+  if (!$('#menu').classList.contains('hidden')) { $('#mHearts').innerHTML = heartsHtml(); $('#mHeartTimer').textContent = heartTimerText(); $('#btnQuiz').disabled = progress.hearts >= MAX_HEARTS; }
+}, 1000);
 $('#trackChips').addEventListener('click', e => {
   const b = e.target.closest('[data-track]');
   if (!b) return;
@@ -922,7 +1152,10 @@ $('#resultButtons').addEventListener('click', e => {
   const act = e.target.closest('[data-act]')?.dataset.act;
   if (act === 'next') startStage();
   else if (act === 'retry') retry();
-  else if (act === 'undo') { G.over = false; undo(); }
+  else if (act === 'undo') undo();
+  else if (act === 'buy') buyMoves();
+  else if (act === 'giveup') giveUp();
+  else if (act === 'quiz') openQuiz();
   else if (act === 'menu') showMenu();
 });
 $('#btnImport').addEventListener('click', () => { $('#impMsg').textContent = ''; showImporter(); });
@@ -953,7 +1186,9 @@ async function boot() {
   loadTracks();
   const saved = store.get('game', null);
   G = saved && saved.limit && saved.cols && saved.cards ? saved : null; // 예전 버전 저장 데이터는 버림
-  if (G && !G.over) { hideOverlays(); render(); } else showMenu();
+  if (G && !G.over) { hideOverlays(); render(); }
+  else if (G && G.over && !G.won && !G.settled) { render(); showResult(); } // 이동 추가/포기 결정 대기 중
+  else showMenu();
   if (failed.length) toast('불러오지 못한 과목 파일: ' + failed.join(', '), 'bad');
 }
 boot();
@@ -962,7 +1197,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 
-window.__meditaire = { get G() { return G; }, get busy() { return busy; }, canDrop, legalMoves, move, draw, simulate, dealOnce, newStage, startStage, doMove, doDraw, runOf, DIFFS };
+window.__meditaire = { get G() { return G; }, get busy() { return busy; }, progress, openQuiz, answerQuiz, get quiz() { return quiz; }, canDrop, legalMoves, move, draw, simulate, dealOnce, newStage, startStage, doMove, doDraw, runOf, DIFFS };
 })();
 </script>
 </body>
