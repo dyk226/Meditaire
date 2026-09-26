@@ -200,6 +200,11 @@ input[type=text] { width: 100%; }
   100%  { transform: perspective(600px) rotateY(0); }
 }
 @keyframes flipback { 0%, 49.9% { opacity: 1; } 50%, 100% { opacity: 0; } }
+/* 헷갈린 주제 */
+.review .t.miss { border-left: 3px solid var(--bad); }
+.review .t.miss b { color: var(--ink); }
+.review .cnt { font-size: 12px; font-weight: 700; color: var(--bad); margin-left: 4px; }
+.backup-code { min-height: 110px; font-size: 11px; word-break: break-all; }
 /* 코인 · 하트 · 퀴즈 */
 .wallet { display: flex; gap: 10px; justify-content: center; margin: 4px 0 14px; }
 .wallet div { flex: 1; background: rgba(255,255,255,.07); border-radius: 12px; padding: 10px; text-align: center; }
@@ -258,9 +263,19 @@ input[type=text] { width: 100%; }
     <h3>연습할 트랙</h3>
     <div id="trackChips" class="chips"></div>
     <div class="sub" style="margin-top:8px">기본은 전체 과목 섞기. 트랙을 바꾸면 지금 단계를 새 카드로 다시 시작해요.</div>
-    <h3>진동</h3>
-    <div class="row"><label for="optHaptic">카드가 주제 칸에 붙을 때 진동<small>아이폰은 iOS 18 이상 · 설정 &gt; 사운드 및 햅틱 &gt; 시스템 햅틱 켜기 필요</small></label><input type="checkbox" id="optHaptic"></div>
-    <button id="btnHapticTest" class="btn" style="width:100%;margin-top:8px">📳 진동 테스트</button>
+    <h3>효과음</h3>
+    <div class="row"><label for="optSound">카드가 주제 칸에 붙을 때 소리<small>아이폰 무음 모드에서는 안 들릴 수 있어요</small></label><input type="checkbox" id="optSound"></div>
+    <div id="menuMistakeWrap">
+      <h3>지금까지 가장 헷갈린 주제</h3>
+      <div id="menuMistakes" class="chips"></div>
+      <button id="btnMistakeReset" class="btn" style="width:100%;margin-top:8px;font-size:13px">헷갈린 주제 기록 초기화</button>
+    </div>
+    <h3>기록 백업</h3>
+    <div class="sub" style="margin-bottom:8px">Safari ↔ 홈 화면 앱, 기기 변경 시 기록을 옮길 때 사용해요.</div>
+    <div class="btn-row" style="margin-top:0">
+      <button id="btnExport" class="btn">📤 내보내기</button>
+      <button id="btnImportSave" class="btn">📥 가져오기</button>
+    </div>
     <h3>카드 데이터</h3>
     <button id="btnImport" class="btn" style="width:100%">＋ 내 카드팩 추가 (JSON)</button>
     <h3>플레이 방법</h3>
@@ -289,6 +304,10 @@ input[type=text] { width: 100%; }
     <div id="resultEarned" class="earned"></div>
     <div id="resultButtons" class="btn-row"></div>
     <div id="reviewWrap">
+      <div id="mistakeWrap">
+        <h3>헷갈린 주제 — 이것부터 복습하세요</h3>
+        <div id="mistakes" class="review"></div>
+      </div>
       <h3>이번 판 주제 복습</h3>
       <div id="review" class="review"></div>
     </div>
@@ -307,6 +326,19 @@ input[type=text] { width: 100%; }
     <div id="qOpts" class="opts"></div>
     <div id="qMsg" class="qmsg"></div>
     <div class="btn-row"><button id="btnQuizClose" class="btn">그만하기</button></div>
+  </div>
+</section>
+
+<section id="backup" class="overlay hidden">
+  <div class="panel">
+    <div class="logo" style="font-size:24px" id="backupTitle">기록 백업</div>
+    <p class="tagline" id="backupHelp"></p>
+    <textarea id="backupCode" class="backup-code" spellcheck="false"></textarea>
+    <div id="backupMsg" class="msg"></div>
+    <div class="btn-row">
+      <button id="btnBackupAction" class="btn primary"></button>
+      <button id="btnBackupClose" class="btn">닫기</button>
+    </div>
   </div>
 </section>
 
@@ -364,7 +396,7 @@ function loadTracks() {
   TRACKS = [...builtin, ...custom];
 }
 const trackById = id => TRACKS.find(t => t.id === id);
-const settings = Object.assign({ tracks: [], haptic: true }, store.get('settings', {}));
+const settings = Object.assign({ tracks: [], sound: true }, store.get('settings', {}));
 const saveSettings = () => store.set('settings', settings);
 const selectedTracks = () => {
   const ids = settings.tracks.filter(trackById);
@@ -544,7 +576,7 @@ function newStage(stage) {
     if (best !== null) break;
   }
   const limit = best !== null ? Math.ceil(best * DIFFS[diff].slack) + 5 : 250;
-  const g = { ...s, stage, diff, trackIds, limit, baseLimit: limit, over: false, won: false, fail: null, settled: false, history: [] };
+  const g = { ...s, stage, diff, trackIds, limit, baseLimit: limit, over: false, won: false, fail: null, settled: false, history: [], mistakes: {} };
   g.initial = snapshot(g);
   return g;
 }
@@ -651,7 +683,7 @@ function abandon(msg) {
 function doMove(src, dst, fromEls) {
   const from = (fromEls || [...board.querySelectorAll(`[data-src="${src}"]`)])
     .map(el => ({ el: el.cloneNode(true), r: el.getBoundingClientRect() }));
-  if (dst[0] === 'A') haptic(); // 사용자 동작 안에서 바로 호출해야 iOS에서 동작
+  if (dst[0] === 'A') sfx.snap(0.22); // 카드가 날아가 닿는 순간에 맞춰 재생
   pushHistory();
   const res = move(G, src, dst);
   render();
@@ -692,24 +724,52 @@ function animateMove(from, dst, done) {
   }, 240);
 }
 
-// 진동: 안드로이드는 Vibration API, iOS 18+ Safari는 스위치 체크박스 토글이 햅틱을 낸다
-// iOS: 스위치 체크박스를 매번 새로 만들어 label을 클릭하는 방식 (사용자 탭 처리 중에 호출돼야 함)
-function haptic(force) {
-  if (!settings.haptic && !force) return;
-  try { if (typeof navigator.vibrate === 'function' && navigator.vibrate(15)) return; } catch (_) {}
-  try {
-    const label = document.createElement('label');
-    label.setAttribute('aria-hidden', 'true');
-    label.style.display = 'none';
-    const input = document.createElement('input');
-    input.type = 'checkbox';
-    input.setAttribute('switch', '');
-    label.appendChild(input);
-    document.head.appendChild(label);
-    label.click();
-    document.head.removeChild(label);
-  } catch (_) {}
-}
+// 효과음: 파일 없이 Web Audio로 합성. iOS는 사용자 터치 중에 오디오를 한 번 깨워야 소리가 난다.
+const sfx = (() => {
+  let ctx = null;
+  const unlock = () => {
+    try {
+      if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if (ctx.state === 'suspended') ctx.resume();
+      const b = ctx.createBuffer(1, 1, 22050), src = ctx.createBufferSource(); // 무음 1샘플로 잠금 해제
+      src.buffer = b; src.connect(ctx.destination); src.start(0);
+    } catch (_) {}
+  };
+  document.addEventListener('pointerdown', unlock, true);
+  document.addEventListener('touchend', unlock, true);
+  const ready = () => settings.sound && ctx && ctx.state === 'running';
+  const tone = (t, f0, f1, dur, vol, type) => {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(f0, t);
+    if (f1) o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(t); o.stop(t + dur + 0.02);
+  };
+  return {
+    // "착": 짧은 잡음 클릭 + 아래로 떨어지는 톤
+    snap(delay = 0) {
+      if (!ready()) return;
+      const t = ctx.currentTime + delay;
+      const len = Math.floor(ctx.sampleRate * 0.03), buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+      const n = ctx.createBufferSource(), bp = ctx.createBiquadFilter(), g = ctx.createGain();
+      n.buffer = buf; bp.type = 'bandpass'; bp.frequency.value = 2400; bp.Q.value = 0.9; g.gain.value = 0.5;
+      n.connect(bp); bp.connect(g); g.connect(ctx.destination); n.start(t);
+      tone(t, 520, 240, 0.08, 0.22);
+    },
+    // 주제 완성: 짧은 두 음 차임
+    chime() {
+      if (!ready()) return;
+      const t = ctx.currentTime;
+      tone(t, 784, 0, 0.18, 0.14, 'triangle');
+      tone(t + 0.1, 1175, 0, 0.26, 0.14, 'triangle');
+    },
+    test() { unlock(); setTimeout(() => this.snap(0), 30); }
+  };
+})();
 function doDraw() {
   if (busy || !G || G.over) return;
   pushHistory();
@@ -737,6 +797,26 @@ function finish(fail) {
   }
   busy = true;
   setTimeout(() => { busy = false; showResult(); }, G.won ? 900 : 600);
+}
+
+// 다른 주제의 카드 위에 놓으려 한 경우만 기록 (양쪽 주제 모두 +1). 화면에는 표시하지 않고 결과 화면 복습용.
+function recordMistake(src, dst) {
+  const run = runOf(G, src).map(id => G.cards[id]);
+  if (!run.length) return;
+  const mine = run[0].topic, k = +dst.slice(2);
+  let other = null;
+  if (dst[0] === 'A') other = G.slots[k].topic;
+  else if (src !== 'B:' + k) { const top = topOf(G, G.cols[k]); other = top ? top.topic : null; }
+  if (other === null || other === mine) return;
+  G.mistakes = G.mistakes || {};
+  const all = store.get('mistakes', {});
+  [mine, other].forEach(t => {
+    G.mistakes[t] = (G.mistakes[t] || 0) + 1;
+    const name = G.topics[t].name;
+    all[name] = (all[name] || 0) + 1;
+  });
+  store.set('mistakes', all);
+  saveGame();
 }
 
 function tap(src, el) {
@@ -904,6 +984,7 @@ function celebrate(res) {
   el.innerHTML = `<div class="tlabel">완성</div><div class="badge">✓</div><div class="txt">${esc(G.topics[res.completed].name)}</div>`;
   $('#board').appendChild(el);
   burst(el);
+  sfx.chime();
   setTimeout(() => el.remove(), 700);
   toast(`✓ <b>${esc(G.topics[res.completed].name)}</b> 완성!`, 'good');
 }
@@ -966,7 +1047,7 @@ board.addEventListener('pointerup', e => {
   const ghostCards = [...d.ghost.children];
   const tgt = dropTargetAt(e.clientX, e.clientY);
   if (tgt && canDrop(G, d.src, tgt) && !pointless(G, d.src, tgt)) doMove(d.src, tgt, ghostCards);
-  else render();
+  else { if (tgt) recordMistake(d.src, tgt); render(); }
   d.ghost.remove();
 });
 board.addEventListener('pointercancel', () => { if (drag && drag.ghost) drag.ghost.remove(); drag = null; render(); });
@@ -995,7 +1076,7 @@ function dropTargetAt(x, y) {
 }
 
 // ---------- Screens ----------
-function hideOverlays() { ['#menu', '#result', '#importer', '#quiz'].forEach(s => $(s).classList.add('hidden')); }
+function hideOverlays() { ['#menu', '#result', '#importer', '#quiz', '#backup'].forEach(s => $(s).classList.add('hidden')); }
 
 const canResume = () => G && !G.over && sameSet(G.trackIds, selectedTracks());
 function showMenu() {
@@ -1009,7 +1090,10 @@ function showMenu() {
   $('#mHeartTimer').textContent = heartTimerText();
   $('#mCoins').textContent = progress.coins.toLocaleString();
   $('#btnQuiz').disabled = progress.hearts >= MAX_HEARTS;
-  $('#optHaptic').checked = settings.haptic;
+  $('#optSound').checked = settings.sound;
+  const allMk = Object.entries(store.get('mistakes', {})).sort((a, b) => b[1] - a[1]).slice(0, 12);
+  $('#menuMistakeWrap').classList.toggle('hidden', !allMk.length);
+  $('#menuMistakes').innerHTML = allMk.map(([n, c]) => `<span class="chip">${esc(n)} <small>${c}</small></span>`).join('');
   hideOverlays();
   $('#menu').classList.remove('hidden');
 }
@@ -1035,6 +1119,13 @@ function showResult() {
   $('#resultButtons').innerHTML = html + (!won && !G.settled ? `<div class="sub" style="width:100%;text-align:center">보유 🪙${progress.coins.toLocaleString()} · ♥ ${progress.hearts}</div>` : '');
   // 이동 추가를 고민하는 중에는 정답(주제별 키워드)을 보여주지 않는다
   $('#reviewWrap').classList.toggle('hidden', !won && !G.settled);
+  const mk = G.mistakes || {};
+  const confused = Object.keys(mk).map(Number).sort((a, b) => mk[b] - mk[a]);
+  $('#mistakeWrap').classList.toggle('hidden', !confused.length);
+  $('#mistakes').innerHTML = confused.map(i => {
+    const t = G.topics[i];
+    return `<div class="t miss"><b>${esc(t.name)}</b> <span class="cnt">잘못 옮김 ${mk[i]}회</span><div class="ws">${t.words.map(esc).join(' · ')}</div></div>`;
+  }).join('');
   $('#review').innerHTML = G.topics.map((t, i) => {
     const done = G.completed.includes(i);
     return `<div class="t ${done ? '' : 'no'}"><b>${done ? '✓ ' : ''}${esc(t.name)}</b> <span class="sub">(${t.n})</span><div class="ws">${t.words.map(esc).join(' · ')}</div></div>`;
@@ -1124,6 +1215,75 @@ function answerQuiz(i) {
 function closeQuiz() {
   stopQuizTimer();
   if (G && G.over && !G.won && G.settled) showResult(); else showMenu();
+}
+
+// ---------- 기록 백업: meditaire:* 저장값 전체를 코드 한 줄로 ----------
+const BACKUP_PREFIX = 'MEDITAIRE1:';
+function exportCode() {
+  const data = {};
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !k.startsWith('meditaire:')) continue;
+      let v = localStorage.getItem(k);
+      // 진행 중인 판의 되돌리기 기록은 코드가 너무 길어져서 뺀다 (판 자체는 그대로 옮겨짐)
+      if (k === 'meditaire:game') { try { v = JSON.stringify({ ...JSON.parse(v), history: [] }); } catch (_) {} }
+      data[k.slice(10)] = v;
+    }
+  } catch (_) {}
+  const bytes = new TextEncoder().encode(JSON.stringify(data));
+  let bin = '';
+  bytes.forEach(b => { bin += String.fromCharCode(b); });
+  return BACKUP_PREFIX + btoa(bin);
+}
+function importCode(code) {
+  const raw = code.trim().replace(/\s+/g, '');
+  if (!raw.startsWith(BACKUP_PREFIX)) throw new Error('Meditaire 백업 코드가 아니에요');
+  let data;
+  try {
+    const bin = atob(raw.slice(BACKUP_PREFIX.length));
+    data = JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0))));
+  } catch (e) { throw new Error('코드가 손상됐어요. 처음부터 끝까지 전부 복사했는지 확인해 주세요'); }
+  if (!data || typeof data.progress !== 'string') throw new Error('기록이 들어 있지 않은 코드예요');
+  const old = [];
+  for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('meditaire:')) old.push(k); }
+  old.forEach(k => localStorage.removeItem(k));
+  Object.entries(data).forEach(([k, v]) => localStorage.setItem('meditaire:' + k, v));
+}
+let backupMode = 'export';
+function openBackup(mode) {
+  backupMode = mode;
+  hideOverlays();
+  $('#backup').classList.remove('hidden');
+  $('#backupMsg').textContent = '';
+  const ta = $('#backupCode');
+  if (mode === 'export') {
+    $('#backupTitle').textContent = '기록 내보내기';
+    $('#backupHelp').textContent = '아래 코드를 복사해서, 옮길 곳(홈 화면 앱 / 다른 기기)의 메뉴 → 가져오기에 붙여넣으세요. 메모 앱이나 카톡 나에게 보내기에 저장해 두면 백업이 돼요.';
+    ta.value = exportCode(); ta.readOnly = true;
+    $('#btnBackupAction').textContent = '📋 코드 복사';
+  } else {
+    $('#backupTitle').textContent = '기록 가져오기';
+    $('#backupHelp').textContent = '내보내기로 받은 코드를 붙여넣으세요. 지금 이 앱의 기록(단계 · 코인 · 하트 · 진행 중인 판 · 내 카드팩)은 코드의 기록으로 바뀌어요.';
+    ta.value = ''; ta.readOnly = false;
+    $('#btnBackupAction').textContent = '가져오기';
+  }
+}
+async function backupAction() {
+  const m = $('#backupMsg'), ta = $('#backupCode');
+  if (backupMode === 'export') {
+    try { await navigator.clipboard.writeText(ta.value); }
+    catch (_) { ta.select(); try { document.execCommand('copy'); } catch (__) {} }
+    m.className = 'msg ok'; m.textContent = '복사했어요!';
+    return;
+  }
+  try {
+    if (!ta.value.trim()) throw new Error('코드를 붙여넣어 주세요');
+    if (!confirm('지금 기록을 덮어쓸까요?')) return;
+    importCode(ta.value);
+    m.className = 'msg ok'; m.textContent = '가져왔어요. 다시 불러오는 중…';
+    setTimeout(() => location.reload(), 500);
+  } catch (e) { m.className = 'msg err'; m.textContent = e.message; }
 }
 
 // ---------- Importer ----------
@@ -1219,8 +1379,12 @@ $('#btnStart').addEventListener('click', () => {
   if (abandon('트랙이 바뀌어 새 카드로 시작해요.')) startStage();
 });
 $('#btnQuiz').addEventListener('click', openQuiz);
-$('#optHaptic').addEventListener('change', e => { settings.haptic = e.target.checked; saveSettings(); });
-$('#btnHapticTest').addEventListener('click', () => { haptic(true); toast('진동이 느껴지면 정상이에요'); });
+$('#btnExport').addEventListener('click', () => openBackup('export'));
+$('#btnImportSave').addEventListener('click', () => openBackup('import'));
+$('#btnBackupAction').addEventListener('click', backupAction);
+$('#btnBackupClose').addEventListener('click', showMenu);
+$('#btnMistakeReset').addEventListener('click', () => { if (confirm('헷갈린 주제 누적 기록을 지울까요?')) { store.del('mistakes'); showMenu(); } });
+$('#optSound').addEventListener('change', e => { settings.sound = e.target.checked; saveSettings(); if (settings.sound) sfx.test(); });
 $('#btnQuizClose').addEventListener('click', closeQuiz);
 $('#qOpts').addEventListener('click', e => { const b = e.target.closest('.opt'); if (b) answerQuiz(+b.dataset.i); });
 setInterval(() => {
@@ -1288,7 +1452,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
 }
 
-window.__meditaire = { get G() { return G; }, get busy() { return busy; }, progress, openQuiz, answerQuiz, get quiz() { return quiz; }, canDrop, legalMoves, move, draw, simulate, dealOnce, newStage, startStage, doMove, doDraw, runOf, DIFFS };
+window.__meditaire = { exportCode, importCode, recordMistake, sfx, get G() { return G; }, get busy() { return busy; }, progress, openQuiz, answerQuiz, get quiz() { return quiz; }, canDrop, legalMoves, move, draw, simulate, dealOnce, newStage, startStage, doMove, doDraw, runOf, DIFFS };
 })();
 </script>
 </body>
