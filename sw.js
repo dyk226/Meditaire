@@ -1,6 +1,10 @@
 // 오프라인 캐시: 캐시에서 먼저 응답하고, 온라인이면 백그라운드로 최신 파일을 받아 둔다.
-const CACHE = 'meditaire-v2';
-const ASSETS = ['./', 'index.html', 'packs.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-180.png', 'icons/icon-512.png'];
+const CACHE = 'meditaire-v3';
+// 과목 파일 목록은 data/tracks.js에서 읽어 함께 캐시한다
+self.window = self;
+try { importScripts('data/tracks.js'); } catch (e) {}
+const ASSETS = ['./', 'index.html', 'data/tracks.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-180.png', 'icons/icon-512.png']
+  .concat((self.MEDITAIRE_TRACK_FILES || []).map(f => 'data/' + f));
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
