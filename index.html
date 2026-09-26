@@ -178,6 +178,15 @@ input[type=text] { width: 100%; }
 .start { width: 100%; padding: 16px; font-size: 17px; }
 .celebrate { position: absolute; z-index: 400; animation: pop .7s ease-out forwards; }
 @keyframes pop { 0% { transform: scale(1); opacity: 1; } 60% { transform: scale(1.12); opacity: 1; } 100% { transform: scale(.6); opacity: 0; } }
+/* 카드가 주제 칸에 붙을 때: 윤곽선이 은은하게 번쩍이며 착 */
+.flying { position: fixed; z-index: 900; pointer-events: none; transition: transform .22s cubic-bezier(.25,.8,.3,1); box-shadow: 0 8px 20px rgba(0,0,0,.45); }
+.card.snap { animation: snap .55s ease-out; z-index: 50 !important; }
+@keyframes snap {
+  0%   { transform: scale(1.07); box-shadow: 0 0 0 2px #fff4cf, 0 0 16px 5px rgba(255,214,110,.85); }
+  45%  { transform: scale(.98);  box-shadow: 0 0 0 2px rgba(255,236,170,.75), 0 0 12px 3px rgba(255,214,110,.5); }
+  100% { transform: scale(1);    box-shadow: var(--shadow); }
+}
+.haptic { position: fixed; left: -200px; top: 0; opacity: 0; pointer-events: none; }
 /* 코인 · 하트 · 퀴즈 */
 .wallet { display: flex; gap: 10px; justify-content: center; margin: 4px 0 14px; }
 .wallet div { flex: 1; background: rgba(255,255,255,.07); border-radius: 12px; padding: 10px; text-align: center; }
@@ -622,12 +631,64 @@ function abandon(msg) {
   return true;
 }
 
-function doMove(src, dst) {
+// 옮긴 카드가 원래 자리(또는 끌던 위치)에서 목적지로 날아가 붙는 연출
+function doMove(src, dst, fromEls) {
+  const from = (fromEls || [...board.querySelectorAll(`[data-src="${src}"]`)])
+    .map(el => ({ el: el.cloneNode(true), r: el.getBoundingClientRect() }));
+  if (dst[0] === 'A') haptic(); // 사용자 동작 안에서 바로 호출해야 iOS에서 동작
   pushHistory();
   const res = move(G, src, dst);
   render();
-  if (res) celebrate(res);
-  after();
+  busy = true;
+  animateMove(from, dst, () => {
+    busy = false;
+    if (res) celebrate(res);
+    after();
+  });
+}
+
+function animateMove(from, dst, done) {
+  const k = dst.slice(2);
+  let targets;
+  if (dst[0] === 'A') targets = from.map(() => [...board.querySelectorAll(`[data-drop="A:${k}"]`)].pop());
+  else { const col = [...board.querySelectorAll(`[data-src="B:${k}"]`)]; targets = col.slice(-from.length); }
+  if (!from.length || targets.some(t => !t)) return done();
+  const hidden = [...new Set(targets)];
+  hidden.forEach(t => { t.style.visibility = 'hidden'; });
+  const clones = from.map(({ el, r }, i) => {
+    el.classList.remove('shake', 'hint');
+    Object.assign(el.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px', visibility: 'visible' });
+    el.classList.add('flying');
+    document.body.appendChild(el);
+    return { el, r, t: targets[i].getBoundingClientRect() };
+  });
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    clones.forEach(({ el, r, t }) => { el.style.transform = `translate(${t.left - r.left}px, ${t.top - r.top}px)`; });
+  }));
+  setTimeout(() => {
+    clones.forEach(c => c.el.remove());
+    hidden.forEach(t => { t.style.visibility = ''; });
+    done(); // 여기서 화면을 다시 그리므로, 번쩍임은 새로 그려진 카드에 준다
+    if (dst[0] === 'A') {
+      const card = [...board.querySelectorAll(`.card[data-drop="A:${k}"]`)].pop();
+      if (card) card.classList.add('snap');
+    }
+  }, 240);
+}
+
+// 진동: 안드로이드는 Vibration API, iOS 18+ Safari는 스위치 체크박스 토글이 햅틱을 낸다
+let hapticEl = null;
+function haptic() {
+  try { if (navigator.vibrate && navigator.vibrate(15)) return; } catch (_) {}
+  try {
+    if (!hapticEl) {
+      hapticEl = document.createElement('label');
+      hapticEl.className = 'haptic';
+      hapticEl.innerHTML = '<input type="checkbox" switch>';
+      document.body.appendChild(hapticEl);
+    }
+    hapticEl.click();
+  } catch (_) {}
 }
 function doDraw() {
   if (busy || !G || G.over) return;
@@ -877,10 +938,11 @@ board.addEventListener('pointerup', e => {
     else if (d.src) tap(d.src, d.el);
     return;
   }
-  d.ghost.remove();
+  const ghostCards = [...d.ghost.children];
   const tgt = dropTargetAt(e.clientX, e.clientY);
-  if (tgt && canDrop(G, d.src, tgt) && !pointless(G, d.src, tgt)) doMove(d.src, tgt);
+  if (tgt && canDrop(G, d.src, tgt) && !pointless(G, d.src, tgt)) doMove(d.src, tgt, ghostCards);
   else render();
+  d.ghost.remove();
 });
 board.addEventListener('pointercancel', () => { if (drag && drag.ghost) drag.ghost.remove(); drag = null; render(); });
 
@@ -1194,7 +1256,8 @@ async function boot() {
 boot();
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  // 새 버전이 설치되면 sw.js가 열린 화면을 한 번 새로고침한다 (진행 상황은 저장되어 있음)
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
 }
 
 window.__meditaire = { get G() { return G; }, get busy() { return busy; }, progress, openQuiz, answerQuiz, get quiz() { return quiz; }, canDrop, legalMoves, move, draw, simulate, dealOnce, newStage, startStage, doMove, doDraw, runOf, DIFFS };
