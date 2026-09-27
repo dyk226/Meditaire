@@ -240,6 +240,11 @@ input[type=text] { width: 100%; }
 .mission .mtext small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }
 .mission .claim { flex: none; min-width: 74px; padding: 10px 8px; font-size: 13px; }
 .mission.done { opacity: .55; }
+/* 계정 */
+#acct { flex-wrap: wrap; }
+#acct .btn { padding: 10px 12px; font-size: 13px; }
+.gbtn { background: #fff !important; color: #1f1f1f !important; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; }
+.gbtn b { font-size: 16px; background: conic-gradient(from -45deg, #ea4335 0 25%, #fbbc05 0 50%, #34a853 0 75%, #4285f4 0); -webkit-background-clip: text; background-clip: text; color: transparent; }
 /* 코인 · 하트 · 퀴즈 */
 .wallet { display: flex; gap: 10px; justify-content: center; margin: 4px 0 14px; }
 .wallet div { flex: 1; background: rgba(255,255,255,.07); border-radius: 12px; padding: 10px; text-align: center; }
@@ -313,8 +318,10 @@ input[type=text] { width: 100%; }
       <div id="menuMistakes" class="chips"></div>
       <button id="btnMistakeReset" class="btn" style="width:100%;margin-top:8px;font-size:13px">헷갈린 주제 기록 초기화</button>
     </div>
+    <h3>계정 · 기기 간 동기화</h3>
+    <div id="acct" class="shop" style="margin-top:0"></div>
     <h3>기록 백업</h3>
-    <div class="sub" style="margin-bottom:8px">Safari ↔ 홈 화면 앱, 기기 변경 시 기록을 옮길 때 사용해요.</div>
+    <div class="sub" style="margin-bottom:8px">로그인 없이 기록을 옮기거나, 만일을 대비해 보관할 때 사용해요.</div>
     <div class="btn-row" style="margin-top:0">
       <button id="btnExport" class="btn">📤 내보내기</button>
       <button id="btnImportSave" class="btn">📥 가져오기</button>
@@ -479,7 +486,7 @@ function loadTracks() {
 }
 const trackById = id => TRACKS.find(t => t.id === id);
 const settings = Object.assign({ tracks: [], sound: true }, store.get('settings', {}));
-const saveSettings = () => store.set('settings', settings);
+const saveSettings = () => { store.set('settings', settings); touch(); };
 const selectedTracks = () => {
   const ids = settings.tracks.filter(trackById);
   return ids.length ? ids : TRACKS.map(t => t.id);
@@ -664,7 +671,7 @@ const COST_UNDO = 600, COST_MOVES = 2500, EXTRA_MOVES = 10, COIN_PER_MOVE = 5;
 const progress = Object.assign({ stage: 1, cleared: 0, coins: 0, hearts: MAX_HEARTS, heartFrom: Date.now() }, store.get('progress', {}));
 const saveProgress = () => store.set('progress', progress);
 function snapshot(s) { return JSON.stringify({ cols: s.cols, slots: s.slots, stock: s.stock, waste: s.waste, completed: s.completed, moves: s.moves, over: s.over, won: s.won }); }
-const saveGame = () => { if (G) store.set('game', { ...G, history: G.history.slice(-80) }); };
+const saveGame = () => { if (G) { store.set('game', { ...G, history: G.history.slice(-80) }); touch(); } };
 const pushHistory = () => { G.history.push(snapshot(G)); if (G.history.length > 400) G.history.shift(); };
 
 // ---------- 출석 (연속 출석 · 달력) ----------
@@ -716,6 +723,7 @@ function repairStreak() {
   const days = store.get('days', {});
   days[info.day] = { r: 1 };
   store.set('days', days);
+  touch();
   sfx.chime();
   toast(`🔧 연속 출석 복구! (−🪙${REPAIR_COST})`, 'good');
 }
@@ -724,6 +732,7 @@ function buyFreeze() {
   if (!spend(FREEZE_COST)) return;
   progress.freezes = (progress.freezes || 0) + 1;
   saveProgress();
+  touch();
   toast(`❄️ 연속 출석 보호권 +1 (보유 ${progress.freezes}/${FREEZE_MAX})`, 'good');
 }
 function markAttendance(won) {
@@ -812,6 +821,7 @@ function claimMission(kind, idx) {
   const st = missionState(), m = st[kind][idx];
   if (!m || m.claimed || m.progress < m.target) return;
   m.claimed = true;
+  touch();
   store.set('missions', st);
   const r = kind === 'daily' ? DAILY_REWARD : WEEKLY_REWARD;
   progress.coins += r; saveProgress();
@@ -1547,6 +1557,7 @@ function importCode(code) {
   for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('meditaire:')) old.push(k); }
   old.forEach(k => localStorage.removeItem(k));
   Object.entries(data).forEach(([k, v]) => localStorage.setItem('meditaire:' + k, v));
+  touch(); // 가져온 기록을 최신으로 취급 → 로그인돼 있으면 서버에도 반영
 }
 let backupMode = 'export';
 function openBackup(mode) {
@@ -1652,6 +1663,7 @@ function saveImport() {
     const custom = store.get('customPacks', []);
     custom.push({ id: 'custom-' + Date.now(), name, subject: '내 카드팩', topics: parsed.topics });
     store.set('customPacks', custom);
+    touch();
     loadTracks();
     $('#impJson').value = ''; $('#impName').value = '';
     showImporter();
@@ -1691,7 +1703,7 @@ $('#btnExport').addEventListener('click', () => openBackup('export'));
 $('#btnImportSave').addEventListener('click', () => openBackup('import'));
 $('#btnBackupAction').addEventListener('click', backupAction);
 $('#btnBackupClose').addEventListener('click', showMenu);
-$('#btnMistakeReset').addEventListener('click', () => { if (confirm('헷갈린 주제 누적 기록을 지울까요?')) { store.del('mistakes'); showMenu(); } });
+$('#btnMistakeReset').addEventListener('click', () => { if (confirm('헷갈린 주제 누적 기록을 지울까요?')) { store.del('mistakes'); touch(); showMenu(); } });
 $('#optSound').addEventListener('change', e => { settings.sound = e.target.checked; saveSettings(); if (settings.sound) sfx.test(); });
 $('#btnQuizClose').addEventListener('click', closeQuiz);
 $('#qOpts').addEventListener('click', e => { const b = e.target.closest('.opt'); if (b) answerQuiz(+b.dataset.i); });
@@ -1734,6 +1746,165 @@ $('#customList').addEventListener('click', e => {
 let resizeTimer;
 window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 120); });
 
+// ---------- 계정 동기화 (Supabase + 구글 로그인) ----------
+// 공개용 anon 키: 서버의 행 수준 보안(RLS)으로 로그인한 본인 기록만 읽고 쓸 수 있다.
+const SUPABASE_URL = 'https://ayumvsgjltfnsymxmnaf.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF5dW12c2dqbHRmbnN5bXhtbmFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0ODk5MjcsImV4cCI6MjEwNjA2NTkyN30.dNJrqmzWQOfwy5UhiljlZXd5TZZhv90U-JWlMndDyfQ';
+const SYNC_KEYS = ['progress', 'game', 'days', 'missions', 'mistakes', 'customPacks', 'settings', 'stats'];
+const sync = { sb: null, user: null, state: 'loading', busy: false, again: false, timer: null };
+
+// "최근 플레이 시각": 실제로 플레이 · 구매 · 설정 변경을 했을 때만 갱신 → 두 기기 중 누가 최신인지 판단
+function touch() {
+  try { localStorage.setItem('meditaire:touchedAt', String(Date.now())); } catch (_) {}
+  scheduleSync();
+}
+function scheduleSync(ms = 3000) {
+  if (!sync.user) return;
+  clearTimeout(sync.timer);
+  sync.timer = setTimeout(() => syncNow(), ms);
+}
+function localSnapshot() {
+  const keys = {};
+  SYNC_KEYS.forEach(k => {
+    let v = localStorage.getItem('meditaire:' + k);
+    if (k === 'game' && v) { try { v = JSON.stringify({ ...JSON.parse(v), history: [] }); } catch (_) {} } // 되돌리기 기록은 기기에만
+    keys[k] = v;
+  });
+  return { v: 1, touchedAt: +(localStorage.getItem('meditaire:touchedAt') || 0), keys };
+}
+const parse = (v, d) => { try { return v == null ? d : JSON.parse(v); } catch (_) { return d; } };
+// 합치기: 출석일 · 헷갈린 주제 · 내 카드팩은 양쪽을 합치고, 나머지(단계 · 코인 · 하트 · 진행 중인 판 · 미션 · 설정)는 최근에 플레이한 쪽
+function mergeSaves(local, remote) {
+  const remoteNewer = (remote.touchedAt || 0) > (local.touchedAt || 0);
+  const base = remoteNewer ? remote : local, other = remoteNewer ? local : remote;
+  const keys = { ...base.keys };
+  const dA = parse(base.keys.days, {}), dB = parse(other.keys.days, {});
+  const days = { ...dA };
+  Object.entries(dB).forEach(([k, r]) => {
+    const a = days[k];
+    if (!a) days[k] = r;
+    else if (attended(a) && attended(r)) days[k] = { g: Math.max(a.g, r.g), c: Math.max(a.c || 0, r.c || 0) };
+    else if (attended(r)) days[k] = r;
+  });
+  if (Object.keys(days).length) keys.days = JSON.stringify(days);
+  const mA = parse(base.keys.mistakes, {}), mB = parse(other.keys.mistakes, {});
+  const mistakes = { ...mA };
+  Object.entries(mB).forEach(([k, n]) => { mistakes[k] = Math.max(mistakes[k] || 0, n); });
+  if (Object.keys(mistakes).length) keys.mistakes = JSON.stringify(mistakes);
+  const pA = parse(base.keys.customPacks, []), pB = parse(other.keys.customPacks, []);
+  const packs = pA.concat(pB.filter(p => !pA.some(q => q.id === p.id)));
+  if (packs.length) keys.customPacks = JSON.stringify(packs);
+  return { v: 1, touchedAt: Math.max(local.touchedAt || 0, remote.touchedAt || 0), keys };
+}
+function applyLocal(data) {
+  let changed = false;
+  SYNC_KEYS.forEach(k => {
+    const v = data.keys[k] == null ? null : data.keys[k];
+    const cur = localStorage.getItem('meditaire:' + k);
+    if (k === 'game' && cur && v) { // 되돌리기 기록 차이는 무시
+      try { if (JSON.stringify({ ...JSON.parse(cur), history: [] }) === v) return; } catch (_) {}
+    }
+    if (cur === v) return;
+    changed = true;
+    if (v == null) localStorage.removeItem('meditaire:' + k); else localStorage.setItem('meditaire:' + k, v);
+  });
+  localStorage.setItem('meditaire:touchedAt', String(data.touchedAt || 0));
+  return changed;
+}
+async function syncNow(manual) {
+  if (!sync.sb || !sync.user) return;
+  if (sync.busy) { sync.again = true; return; }
+  sync.busy = true; sync.state = 'syncing'; renderAccount();
+  try {
+    const uid = sync.user.id;
+    const { data: row, error } = await sync.sb.from('saves').select('data').eq('user_id', uid).maybeSingle();
+    if (error) throw error;
+    const local = localSnapshot();
+    const merged = row && row.data && row.data.keys ? mergeSaves(local, row.data) : local;
+    const changed = applyLocal(merged);
+    if (!row || JSON.stringify(row.data) !== JSON.stringify(merged)) {
+      const { error: e2 } = await sync.sb.from('saves').upsert({ user_id: uid, data: merged, updated_at: new Date().toISOString() });
+      if (e2) throw e2;
+    }
+    localStorage.setItem('meditaire:syncAt', String(Date.now()));
+    sync.state = 'ready';
+    if (changed) { // 다른 기기의 기록을 받아왔으면 화면을 새로 불러와 반영
+      try { sessionStorage.setItem('meditaire:synced', '1'); } catch (_) {}
+      location.reload();
+      return;
+    }
+    if (manual) toast('☁️ 동기화 완료');
+  } catch (e) {
+    sync.state = 'error';
+    if (manual) toast('동기화 실패 — 인터넷 연결을 확인해 주세요', 'bad');
+  } finally {
+    sync.busy = false;
+    renderAccount();
+    if (sync.again) { sync.again = false; scheduleSync(500); }
+  }
+}
+function renderAccount() {
+  const el = $('#acct');
+  if (!el) return;
+  if (sync.state === 'loading') { el.innerHTML = '<div>동기화 준비 중…</div>'; return; }
+  if (sync.state === 'unavailable') { el.innerHTML = '<div>지금은 동기화를 쓸 수 없어요<small>인터넷에 연결된 상태에서 다시 열어 주세요</small></div>'; return; }
+  if (!sync.user) {
+    el.innerHTML = '<div>로그인하면 폰 · 아이패드 등 여러 기기에서 같은 기록으로 이어서 할 수 있어요<small>로그인하지 않아도 이 기기에서는 그대로 저장돼요</small></div><button id="btnLogin" class="btn gbtn"><b>G</b> 구글로 로그인</button>';
+    return;
+  }
+  const at = +(localStorage.getItem('meditaire:syncAt') || 0);
+  const when = at ? new Date(at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '아직 안 함';
+  const status = sync.state === 'syncing' ? '동기화 중…' : sync.state === 'error' ? '⚠️ 마지막 동기화 실패' : `마지막 동기화: ${when}`;
+  el.innerHTML = `<div>✅ ${esc(sync.user.email || '로그인됨')}<small>${status}</small></div><div class="btn-row" style="margin-top:0;width:100%"><button id="btnSyncNow" class="btn">☁️ 지금 동기화</button><button id="btnLogout" class="btn">로그아웃</button></div>`;
+}
+async function login() {
+  if (!sync.sb) return;
+  const { error } = await sync.sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: new URL('./', location.href).href } });
+  if (error) toast('로그인을 시작하지 못했어요: ' + error.message, 'bad');
+}
+async function logout() {
+  if (!sync.sb || !confirm('로그아웃할까요? 이 기기의 기록은 그대로 남아요.')) return;
+  await syncNow();
+  await sync.sb.auth.signOut();
+  sync.user = null; renderAccount();
+  toast('로그아웃했어요');
+}
+async function initSync() {
+  const params = new URLSearchParams(location.search);
+  const authError = params.get('error_description') || params.get('error');
+  try {
+    if (!window.__MEDI_SB_MOCK && !window.supabase) await loadScript('vendor/supabase.js');
+    const lib = window.__MEDI_SB_MOCK || window.supabase;
+    if (!lib || !lib.createClient) throw new Error('no lib');
+    sync.sb = lib.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { flowType: 'pkce', detectSessionInUrl: true, persistSession: true, autoRefreshToken: true } });
+    const { data } = await sync.sb.auth.getSession();
+    sync.user = data && data.session ? data.session.user : null;
+    sync.sb.auth.onAuthStateChange((ev, session) => {
+      const had = !!sync.user;
+      sync.user = session ? session.user : null;
+      renderAccount();
+      if (sync.user && !had) syncNow();
+    });
+    sync.state = 'ready';
+  } catch (e) { sync.state = 'unavailable'; }
+  if (params.has('code') || authError) history.replaceState(null, '', location.pathname); // 로그인 후 주소창 정리
+  if (authError) toast('로그인하지 못했어요: ' + authError, 'bad');
+  renderAccount();
+  try { if (sessionStorage.getItem('meditaire:synced')) { sessionStorage.removeItem('meditaire:synced'); toast('☁️ 다른 기기의 기록을 불러왔어요', 'good'); } } catch (_) {}
+  if (sync.user) syncNow();
+}
+$('#acct').addEventListener('click', e => {
+  if (e.target.closest('#btnLogin')) login();
+  else if (e.target.closest('#btnSyncNow')) syncNow(true);
+  else if (e.target.closest('#btnLogout')) logout();
+});
+// 앱으로 돌아오면 받아오고, 떠날 때는 바로 올린다
+document.addEventListener('visibilitychange', () => {
+  if (!sync.user) return;
+  if (document.visibilityState === 'visible') scheduleSync(300);
+  else if (sync.timer) { clearTimeout(sync.timer); syncNow(); }
+});
+
 // data/tracks.js에 적힌 과목 파일을 차례로 불러온 뒤 시작
 function loadScript(src) {
   return new Promise(res => {
@@ -1752,6 +1923,7 @@ async function boot() {
   else if (G && G.over && !G.won && !G.settled) { render(); showResult(); } // 이동 추가/포기 결정 대기 중
   else showMenu();
   if (failed.length) toast('불러오지 못한 과목 파일: ' + failed.join(', '), 'bad');
+  initSync();
 }
 boot();
 
@@ -1760,7 +1932,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
 }
 
-window.__meditaire = { repairInfo, applyFreezes, buyFreeze, repairStreak, streakInfo, missionState, mission, markAttendance, dayKey, exportCode, importCode, recordMistake, sfx, get G() { return G; }, get busy() { return busy; }, progress, openQuiz, answerQuiz, get quiz() { return quiz; }, canDrop, legalMoves, move, draw, simulate, dealOnce, newStage, startStage, doMove, doDraw, runOf, DIFFS };
+window.__meditaire = { sync, syncNow, mergeSaves, localSnapshot, repairInfo, applyFreezes, buyFreeze, repairStreak, streakInfo, missionState, mission, markAttendance, dayKey, exportCode, importCode, recordMistake, sfx, get G() { return G; }, get busy() { return busy; }, progress, openQuiz, answerQuiz, get quiz() { return quiz; }, canDrop, legalMoves, move, draw, simulate, dealOnce, newStage, startStage, doMove, doDraw, runOf, DIFFS };
 })();
 </script>
 </body>

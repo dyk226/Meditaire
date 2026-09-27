@@ -1,10 +1,10 @@
 // 오프라인 캐시. 온라인이면 항상 서버의 최신 파일을 먼저 받고(브라우저 HTTP 캐시도 건너뜀),
 // 오프라인일 때만 저장해 둔 사본을 쓴다. → 과목 파일을 고치면 바로 반영된다.
-const CACHE = 'meditaire-v6';
+const CACHE = 'meditaire-v7';
 // 과목 파일 목록은 data/tracks.js에서 읽어 함께 캐시한다
 self.window = self;
 try { importScripts('data/tracks.js'); } catch (e) {}
-const ASSETS = ['./', 'index.html', 'data/tracks.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-180.png', 'icons/icon-512.png']
+const ASSETS = ['./', 'index.html', 'vendor/supabase.js', 'data/tracks.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-180.png', 'icons/icon-512.png']
   .concat((self.MEDITAIRE_TRACK_FILES || []).map(f => 'data/' + f));
 
 self.addEventListener('install', e => {
