@@ -221,6 +221,14 @@ input[type=text] { width: 100%; }
 .cal .d { aspect-ratio: 1; border-radius: 10px; background: rgba(255,255,255,.05); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 13px; color: var(--muted); }
 .cal .d.on { background: linear-gradient(160deg, #ffb347, #ff7e36); color: #3a1a00; font-weight: 800; }
 .cal .d.on small { font-size: 9px; font-weight: 700; opacity: .8; }
+.cal .d.frozen { background: linear-gradient(160deg, #9fd8ff, #5aa9e6); color: #06253d; font-weight: 800; }
+.cal .d.repaired { background: linear-gradient(160deg, #d6b6ff, #9d6bea); color: #22073f; font-weight: 800; }
+.cal .d.frozen small, .cal .d.repaired small { font-size: 10px; }
+.shop { display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,.06); border-radius: 12px; padding: 10px 12px; margin-top: 10px; }
+.shop > div { flex: 1; font-size: 14px; }
+.shop small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.shop .btn { flex: none; padding: 10px 12px; font-size: 13px; }
+.repair { background: rgba(157,107,234,.18); border: 1px solid rgba(157,107,234,.5); }
 .cal .d.today { box-shadow: inset 0 0 0 2px var(--ink); }
 .cal .d.future { opacity: .35; }
 .cal .d.blank { background: none; }
@@ -287,8 +295,12 @@ input[type=text] { width: 100%; }
     <button id="btnStart" class="btn primary start">시작</button>
     <div id="progressInfo" class="sub" style="margin-top:8px;text-align:center"></div>
     <div class="streak-row">
-      <button id="btnCalendar" class="btn"><span class="flame">🔥</span> <b id="mStreak">0</b>일 연속 · 📅 달력</button>
+      <button id="btnCalendar" class="btn"><span class="flame">🔥</span> <b id="mStreak">0</b>일 연속 <span id="mFreeze"></span> · 📅</button>
       <button id="btnMissions" class="btn">🎯 미션 <span id="mMission"></span><i id="mMissionDot" class="dot hidden"></i></button>
+    </div>
+    <div id="mRepair" class="shop repair hidden">
+      <div id="mRepairText"></div>
+      <button id="btnRepairMenu" class="btn primary">🔧 🪙1500</button>
     </div>
     <button id="btnQuiz" class="btn" style="width:100%;margin-top:8px">⏱ 퀴즈 (5연속 정답 → ❤ +1)</button>
     <h3>연습할 트랙</h3>
@@ -374,6 +386,15 @@ input[type=text] { width: 100%; }
     <div class="cal-head"><button id="calPrev" aria-label="이전 달">‹</button><b id="calTitle"></b><button id="calNext" aria-label="다음 달">›</button></div>
     <div id="calGrid" class="cal"></div>
     <div id="calMsg" class="sub" style="margin-top:12px;text-align:center"></div>
+    <div class="sub" style="margin-top:6px;text-align:center;font-size:12px">🟧 출석 · 🟦 보호권으로 메운 날 · 🟪 수리한 날</div>
+    <div id="calRepair" class="shop repair hidden">
+      <div id="calRepairText"></div>
+      <button id="btnRepair" class="btn primary">🔧 복구 🪙1500</button>
+    </div>
+    <div class="shop">
+      <div><b id="calFreeze">❄️ 보호권 0/2</b><small>출석을 빠뜨린 날 자동으로 쓰여 연속을 지켜줘요</small></div>
+      <button id="btnBuyFreeze" class="btn">구매 🪙1000</button>
+    </div>
     <div class="btn-row"><button id="btnCalClose" class="btn">닫기</button></div>
   </div>
 </section>
@@ -651,18 +672,64 @@ const pushHistory = () => { G.history.push(snapshot(G)); if (G.history.length > 
 const pad2 = n => String(n).padStart(2, '0');
 const dayKey = (d = new Date()) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 const addDays = (key, n) => { const [y, m, d] = key.split('-').map(Number); return dayKey(new Date(y, m - 1, d + n)); };
+// days 기록 종류: { g, c } 실제 출석 · { f: 1 } 보호권으로 메운 날 · { r: 1 } 수리한 날
+// 메운 날은 연속을 이어 주지만 연속 일수에는 더하지 않는다 (듀오링고와 같음)
+const FREEZE_COST = 1000, FREEZE_MAX = 2, REPAIR_COST = 1500;
+const attended = rec => !!(rec && rec.g);
+const chainEnding = (days, k) => { let n = 0; while (days[k]) { if (attended(days[k])) n++; k = addDays(k, -1); } return n; };
 function streakInfo() {
+  applyFreezes();
   const days = store.get('days', {});
   const today = dayKey();
-  let cur = 0, k = days[today] ? today : addDays(today, -1);
-  while (days[k]) { cur++; k = addDays(k, -1); }
+  const cur = chainEnding(days, days[today] ? today : addDays(today, -1));
   let best = 0, run = 0, prev = null;
-  Object.keys(days).sort().forEach(d => { run = prev && addDays(prev, 1) === d ? run + 1 : 1; best = Math.max(best, run); prev = d; });
-  return { cur, best, total: Object.keys(days).length, today: !!days[today] };
+  Object.keys(days).sort().forEach(d => { const a = attended(days[d]) ? 1 : 0; run = prev && addDays(prev, 1) === d ? run + a : a; best = Math.max(best, run); prev = d; });
+  return { cur, best, total: Object.values(days).filter(attended).length, today: attended(days[today]), freezes: progress.freezes || 0 };
+}
+// 빠진 날이 있으면 보호권으로 메운다. 빠진 날을 전부 메울 수 있을 때만 사용 (모자라면 어차피 끊기므로 아껴 둠)
+function applyFreezes() {
+  const n = progress.freezes || 0;
+  if (!n) return;
+  const days = store.get('days', {}), today = dayKey(), yesterday = addDays(today, -1);
+  if (days[yesterday]) return;
+  const last = Object.keys(days).filter(k => k < today).sort().pop();
+  if (!last) return;
+  const gap = [];
+  for (let k = addDays(last, 1); k <= yesterday; k = addDays(k, 1)) gap.push(k);
+  if (!gap.length || gap.length > n) return;
+  gap.forEach(k => { days[k] = { f: 1 }; });
+  store.set('days', days);
+  progress.freezes = n - gap.length;
+  progress.freezeNotice = gap.length;
+  saveProgress();
+}
+// 수리: 어제 하루만 빠져서 끊긴 경우, 오늘 안에 코인으로 어제를 메운다
+function repairInfo() {
+  const days = store.get('days', {}), today = dayKey(), yesterday = addDays(today, -1);
+  if (days[yesterday]) return null;
+  const lost = chainEnding(days, addDays(today, -2));
+  return lost ? { lost, day: yesterday } : null;
+}
+function repairStreak() {
+  const info = repairInfo();
+  if (!info || !spend(REPAIR_COST)) return;
+  const days = store.get('days', {});
+  days[info.day] = { r: 1 };
+  store.set('days', days);
+  sfx.chime();
+  toast(`🔧 연속 출석 복구! (−🪙${REPAIR_COST})`, 'good');
+}
+function buyFreeze() {
+  if ((progress.freezes || 0) >= FREEZE_MAX) { toast(`보호권은 최대 ${FREEZE_MAX}개까지 가질 수 있어요`, 'bad'); return; }
+  if (!spend(FREEZE_COST)) return;
+  progress.freezes = (progress.freezes || 0) + 1;
+  saveProgress();
+  toast(`❄️ 연속 출석 보호권 +1 (보유 ${progress.freezes}/${FREEZE_MAX})`, 'good');
 }
 function markAttendance(won) {
-  const days = store.get('days', {}), today = dayKey(), first = !days[today];
-  const d = days[today] = days[today] || { g: 0, c: 0 };
+  applyFreezes();
+  const days = store.get('days', {}), today = dayKey(), first = !attended(days[today]);
+  const d = days[today] = attended(days[today]) ? days[today] : { g: 0, c: 0 };
   d.g++; if (won) d.c++;
   store.set('days', days);
   if (first) {
@@ -775,7 +842,7 @@ function showCalendar(delta) {
   const now = new Date();
   if (!calMonth || delta === undefined) calMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   else calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + delta, 1);
-  const days = store.get('days', {}), st = streakInfo(), today = dayKey();
+  const st = streakInfo(), days = store.get('days', {}), today = dayKey(); // streakInfo가 보호권을 먼저 적용
   $('#cStreak').textContent = st.cur; $('#cBest').textContent = st.best; $('#cTotal').textContent = st.total;
   const y = calMonth.getFullYear(), m = calMonth.getMonth();
   $('#calTitle').textContent = `${y}년 ${m + 1}월`;
@@ -785,10 +852,17 @@ function showCalendar(delta) {
   let monthCount = 0;
   for (let d = 1; d <= last; d++) {
     const k = `${y}-${pad2(m + 1)}-${pad2(d)}`, rec = days[k];
-    if (rec) monthCount++;
-    html += `<div class="d ${rec ? 'on' : ''} ${k === today ? 'today' : ''} ${k > today ? 'future' : ''}">${d}${rec && rec.c ? `<small>${rec.c}판</small>` : ''}</div>`;
+    if (attended(rec)) monthCount++;
+    const cls = attended(rec) ? 'on' : rec && rec.f ? 'frozen' : rec && rec.r ? 'repaired' : '';
+    const sub = attended(rec) ? (rec.c ? `<small>${rec.c}판</small>` : '') : rec && rec.f ? '<small>❄️</small>' : rec && rec.r ? '<small>🔧</small>' : '';
+    html += `<div class="d ${cls} ${k === today ? 'today' : ''} ${k > today ? 'future' : ''}">${d}${sub}</div>`;
   }
   $('#calGrid').innerHTML = html;
+  $('#calFreeze').textContent = `❄️ 보호권 ${st.freezes}/${FREEZE_MAX}`;
+  $('#btnBuyFreeze').disabled = st.freezes >= FREEZE_MAX;
+  const rp = repairInfo();
+  $('#calRepair').classList.toggle('hidden', !rp);
+  if (rp) $('#calRepairText').innerHTML = `💔 어제 출석을 놓쳐 <b>${rp.lost}일 연속</b>이 끊겼어요. 오늘 안에만 복구할 수 있어요.`;
   $('#calMsg').textContent = st.today ? `오늘 출석 완료! 이번 달 ${monthCount}일 출석` : `오늘 한 판을 끝내면 ${st.cur + 1}일 연속이 돼요 · 이번 달 ${monthCount}일 출석`;
   hideOverlays();
   $('#calendar').classList.remove('hidden');
@@ -1286,6 +1360,11 @@ function renderMenuStatus() {
   const st = streakInfo(), ms = missionState(), n = claimable();
   const doneCount = k => ms[k].filter(m => m.progress >= m.target).length;
   $('#mStreak').textContent = st.cur;
+  $('#mFreeze').textContent = st.freezes ? '❄️'.repeat(st.freezes) : '';
+  const rp = repairInfo();
+  $('#mRepair').classList.toggle('hidden', !rp);
+  if (rp) $('#mRepairText').innerHTML = `💔 어제 출석을 놓쳐 <b>${rp.lost}일 연속</b>이 끊겼어요<small>오늘 안에만 복구할 수 있어요</small>`;
+  if (progress.freezeNotice) { toast(`❄️ 보호권 ${progress.freezeNotice}개를 써서 연속 출석을 지켰어요!`, 'good'); progress.freezeNotice = 0; saveProgress(); }
   $('#mMission').textContent = `${doneCount('daily')}/3 · 주간 ${doneCount('weekly')}/3`;
   $('#mMissionDot').classList.toggle('hidden', !n);
 }
@@ -1602,6 +1681,9 @@ $('#btnCalendar').addEventListener('click', () => showCalendar());
 $('#calPrev').addEventListener('click', () => showCalendar(-1));
 $('#calNext').addEventListener('click', () => showCalendar(1));
 $('#btnCalClose').addEventListener('click', showMenu);
+$('#btnBuyFreeze').addEventListener('click', () => { buyFreeze(); showCalendar(0); });
+$('#btnRepair').addEventListener('click', () => { repairStreak(); showCalendar(0); });
+$('#btnRepairMenu').addEventListener('click', () => { repairStreak(); showMenu(); });
 $('#btnMissions').addEventListener('click', showMissions);
 $('#btnMissionClose').addEventListener('click', showMenu);
 $('#dailyList').parentElement.addEventListener('click', e => { const b = e.target.closest('[data-claim]'); if (b) { const [k, i] = b.dataset.claim.split(':'); claimMission(k, +i); } });
@@ -1678,7 +1760,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
 }
 
-window.__meditaire = { streakInfo, missionState, mission, markAttendance, dayKey, exportCode, importCode, recordMistake, sfx, get G() { return G; }, get busy() { return busy; }, progress, openQuiz, answerQuiz, get quiz() { return quiz; }, canDrop, legalMoves, move, draw, simulate, dealOnce, newStage, startStage, doMove, doDraw, runOf, DIFFS };
+window.__meditaire = { repairInfo, applyFreezes, buyFreeze, repairStreak, streakInfo, missionState, mission, markAttendance, dayKey, exportCode, importCode, recordMistake, sfx, get G() { return G; }, get busy() { return busy; }, progress, openQuiz, answerQuiz, get quiz() { return quiz; }, canDrop, legalMoves, move, draw, simulate, dealOnce, newStage, startStage, doMove, doDraw, runOf, DIFFS };
 })();
 </script>
 </body>
