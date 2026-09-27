@@ -375,7 +375,8 @@ const store = {
   del(k) { try { localStorage.removeItem('meditaire:' + k); } catch (e) {} }
 };
 const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
-const MIN_WORDS = 3, MAX_WORDS = 8;
+// 데이터베이스에는 주제당 키워드를 최대 12장까지 넣을 수 있고, 한 판에는 그중 4~8장(적으면 전부)이 무작위로 나간다
+const MIN_WORDS = 3, MAX_WORDS = 8, DB_MAX_WORDS = 12;
 
 // 단계 난이도: 등장 확률, 칸 수, 주제 수, 열마다 깔리는 카드 수, 이동 제한 여유 배수
 const DIFFS = {
@@ -521,15 +522,20 @@ function simulate(s0) {
 }
 
 // ---------- Dealing ----------
+// 한 판의 주제 고르기: 데이터베이스상 키워드가 하나라도 겹치는 주제끼리는 같은 판에 넣지 않는다.
+// (예: CML과 Precursor B-cell ALL은 'BCR-ABL'을 공유 → CML이 뽑히면 ALL은 이번 판에서 제외)
 function pickTopics(trackIds, want) {
   const pool = shuffle(trackIds.flatMap(id => (trackById(id)?.topics || []).filter(t => t.cards.length >= MIN_WORDS)));
   const used = new Set(), out = [];
   for (const t of pool) {
     if (out.length >= want) break;
-    const cards = t.cards.slice(0, MAX_WORDS);
-    if (used.has(t.name) || cards.some(c => used.has(c))) continue; // 다른 주제와 겹치는 문구가 있으면 같은 판에 안 넣음
-    used.add(t.name); cards.forEach(c => used.add(c));
-    out.push({ name: t.name, cards });
+    const all = [...new Set(t.cards)];
+    if (used.has(t.name) || all.some(c => used.has(c))) continue;
+    used.add(t.name); all.forEach(c => used.add(c));
+    // 이번 판에 낼 키워드 수: 4~8장 중 무작위 (데이터가 적으면 가진 만큼)
+    const lo = Math.min(all.length, 4), hi = Math.min(all.length, MAX_WORDS);
+    const k = lo + Math.floor(Math.random() * (hi - lo + 1));
+    out.push({ name: t.name, cards: shuffle(all.slice()).slice(0, k) });
   }
   return out;
 }
@@ -1123,15 +1129,22 @@ function makeQuestion() {
   const tracks = selectedTracks().map(trackById).filter(Boolean);
   const all = tracks.flatMap(t => t.topics.map(tp => ({ ...tp, track: t.id }))).filter(t => t.cards.length);
   const topic = pickOne(all);
-  const same = all.filter(t => t.track === topic.track && t.name !== topic.name);
-  const others = (same.length >= 3 ? same : all.filter(t => t.name !== topic.name));
-  const distract = shuffle(others.slice()).slice(0, 3);
+  const others = t => t.name !== topic.name;
   if (Math.random() < 0.5) {
+    // "이 주제의 키워드는?" — 오답 보기는 이 주제에도 해당하는 키워드면 안 됨
     const answer = pickOne(topic.cards);
-    return { html: `다음 중 <em>${esc(topic.name)}</em>의 키워드는?`, answer, opts: shuffle([answer, ...distract.map(t => pickOne(t.cards))]) };
+    const mine = new Set(topic.cards);
+    const wrongs = [...new Set(all.filter(others).flatMap(t => t.cards))].filter(c => !mine.has(c));
+    const sameTrack = [...new Set(all.filter(t => others(t) && t.track === topic.track).flatMap(t => t.cards))].filter(c => !mine.has(c));
+    const pool = sameTrack.length >= 3 ? sameTrack : wrongs;
+    return { html: `다음 중 <em>${esc(topic.name)}</em>의 키워드는?`, answer, opts: shuffle([answer, ...shuffle(pool.slice()).slice(0, 3)]) };
   }
+  // "이 키워드는 어느 주제?" — 오답 보기 주제는 그 키워드를 갖고 있으면 안 됨
   const word = pickOne(topic.cards);
-  return { html: `<em>${esc(word)}</em><br>어느 주제의 키워드일까?`, answer: topic.name, opts: shuffle([topic.name, ...distract.map(t => t.name)]) };
+  const cands = all.filter(t => others(t) && !t.cards.includes(word));
+  const sameTrack = cands.filter(t => t.track === topic.track);
+  const pool = sameTrack.length >= 3 ? sameTrack : cands;
+  return { html: `<em>${esc(word)}</em><br>어느 주제의 키워드일까?`, answer: topic.name, opts: shuffle([topic.name, ...shuffle(pool.slice()).slice(0, 3).map(t => t.name)]) };
 }
 function renderQuizTop() {
   $('#qHearts').innerHTML = heartsHtml();
@@ -1268,7 +1281,7 @@ async function backupAction() {
 
 // ---------- Importer ----------
 const PROMPT = `너는 한국 의사국가고시(KMLE) 암기용 카드 게임 데이터를 만드는 도우미야.
-아래 [단원] 내용에서 주제(질환) 12~20개를 골라, 각 주제에 딸린 핵심 키워드 카드 3~8장을 만들어서 설명 없이 JSON 하나로만 답해줘.
+아래 [단원] 내용에서 주제(질환) 12~20개를 골라, 각 주제에 딸린 핵심 키워드 카드를 넉넉하게 6~10장씩 만들어서 설명 없이 JSON 하나로만 답해줘.
 
 형식:
 {
@@ -1282,8 +1295,9 @@ const PROMPT = `너는 한국 의사국가고시(KMLE) 암기용 카드 게임 �
 - 키워드는 머릿속에 넣을 핵심어 위주: 원인, 위험인자, 대표 증상, 특징적인 환자상
 - 검사소견은 정말 특징적인 것만 (예: MCV > 100, BCR-ABL). 자잘한 수치는 넣지 말 것
 - 치료는 대표 약·시술만 (예: 이마티닙, ATRA)
-- 카드 문구는 15자 안팎으로 짧게, 팩 전체에서 중복 금지
-- 한 키워드가 여러 주제에 해당하면 가장 특징적인 주제 한 곳에만 넣을 것
+- 카드 문구는 15자 안팎으로 짧게
+- 한 키워드가 여러 주제에 해당하면 해당하는 주제마다 "완전히 같은 문구"로 넣을 것 (예: "비장비대 O")
+- "MRI", "고혈압", "대증치료"처럼 여러 질환에 두루 해당하는 막연한 키워드는 쓰지 말고 그 주제에만 맞게 구체적으로
 - 교과서 기준으로 사실관계가 정확할 것
 
 [단원]
@@ -1295,14 +1309,13 @@ function parseImport(raw) {
   try { data = JSON.parse(txt); } catch (e) { throw new Error('JSON 형식이 올바르지 않아요: ' + e.message); }
   const list = Array.isArray(data) ? data : data.topics;
   if (!Array.isArray(list)) throw new Error('"topics" 배열을 찾지 못했어요');
-  const seen = new Set(), topics = [], skipped = [];
+  const topics = [], skipped = [];
   list.forEach(t => {
     if (!t || typeof t.name !== 'string' || !Array.isArray(t.cards)) return;
-    const cards = [...new Set(t.cards.filter(c => typeof c === 'string' && c.trim()).map(c => c.trim()))].filter(c => !seen.has(c));
+    // 다른 주제와 겹치는 키워드는 그대로 둔다 (겹치는 주제끼리는 같은 판에 안 나옴)
+    const cards = [...new Set(t.cards.filter(c => typeof c === 'string' && c.trim()).map(c => c.trim()))];
     if (cards.length < MIN_WORDS) { skipped.push(t.name); return; }
-    const kept = cards.slice(0, MAX_WORDS);
-    kept.forEach(c => seen.add(c));
-    topics.push({ name: t.name.trim(), cards: kept });
+    topics.push({ name: t.name.trim(), cards: cards.slice(0, DB_MAX_WORDS) });
   });
   if (topics.length < 4) throw new Error(`유효한 주제가 ${topics.length}개예요. 최소 4개 필요해요 (주제마다 키워드 ${MIN_WORDS}장 이상)`);
   return { topics, skipped, name: !Array.isArray(data) && typeof data.name === 'string' ? data.name : '' };
