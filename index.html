@@ -481,9 +481,9 @@ const MIN_WORDS = 3, MAX_WORDS = 8, DB_MAX_WORDS = 12;
 
 // 단계 난이도: 등장 확률, 칸 수, 주제 수, 열마다 깔리는 카드 수, 이동 제한 여유 배수
 const DIFFS = {
-  easy:   { name: '쉬움',   p: 0.25, slots: 4, topics: 6, colBase: 1, slack: 1.4 },
-  normal: { name: '보통',   p: 0.55, slots: 4, topics: 7, colBase: 2, slack: 1.25 },
-  hard:   { name: '어려움', p: 0.20, slots: 5, topics: 9, colBase: 2, slack: 1.1 }
+  easy:   { name: '쉬움',   p: 0.25, slots: 4, topics: 6, colBase: 1, slack: 1.2 },
+  normal: { name: '보통',   p: 0.55, slots: 4, topics: 7, colBase: 2, slack: 1.1 },
+  hard:   { name: '어려움', p: 0.20, slots: 5, topics: 9, colBase: 2, slack: 1.0 }
 };
 function rollDiff() {
   let r = Math.random();
