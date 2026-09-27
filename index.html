@@ -208,6 +208,19 @@ input[type=text] { width: 100%; }
 /* 복습 목록: 키워드 하나하나를 칩으로 (키워드 안의 '·'와 헷갈리지 않게) */
 .review .t .ws { display: flex; flex-wrap: wrap; gap: 5px; }
 .review .t .ws span { background: rgba(255,255,255,.07); border-radius: 6px; padding: 2px 7px; }
+/* 게임판 밖(결과 · 메뉴 · 퀴즈 등)에서는 글자를 길게 눌러 선택 · 복사할 수 있게 */
+.overlay, .overlay *, .toast { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+.overlay button, .overlay .btn, .overlay .chip, .overlay .opt { -webkit-user-select: none; user-select: none; }
+.review .t .th { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+.review .t .th b { font-size: 16px; }
+.review .t .cr { display: flex; gap: 8px; align-items: flex-start; margin-top: 5px; }
+.review .t .cr .ws { margin-top: 0; flex: 1; }
+.cat { font-style: normal; flex: none; width: 84px; font-size: 11px; font-weight: 800; padding: 3px 0; text-align: center; border-radius: 6px; margin-top: 1px; }
+.c-역학 { background: #2c4a6b; color: #bcd9ff; } .c-원인 { background: #4b3a6b; color: #dcc9ff; } .c-증상 { background: #6b4a2c; color: #ffd9b0; }
+.c-진단 { background: #2c5a4f; color: #b5f0dc; } .c-치료 { background: #5a5a2c; color: #f3f0a8; } .c-예후 { background: #6b2c3a; color: #ffc0cc; } .c-기타 { background: #444; color: #ccc; }
+.review .t .ws span.extra { opacity: .45; }
+.copy { margin-left: auto; background: rgba(255,255,255,.1); border: 0; border-radius: 8px; padding: 5px 9px; font-size: 12px; color: var(--ink); }
+.review-head { display: flex; align-items: center; } .review-head h3 { flex: 1; }
 /* 출석 · 미션 */
 .streak-row { display: flex; gap: 8px; margin: 10px 0 0; }
 .streak-row .btn { flex: 1; padding: 11px 8px; font-size: 14px; position: relative; }
@@ -360,7 +373,8 @@ input[type=text] { width: 100%; }
         <h3>헷갈린 주제 — 이것부터 복습하세요</h3>
         <div id="mistakes" class="review"></div>
       </div>
-      <h3>이번 판 주제 복습</h3>
+      <div class="review-head"><h3>이번 판 주제 복습</h3><button id="btnCopyAll" class="copy">📋 전체 복사</button></div>
+      <div class="sub" style="margin:-4px 0 8px;font-size:12px">흐린 키워드는 이번 판에는 안 나왔지만 함께 알아 둘 것 · 길게 눌러 글자 선택 가능</div>
       <div id="review" class="review"></div>
     </div>
   </div>
@@ -438,7 +452,7 @@ input[type=text] { width: 100%; }
     <h3>트랙 이름</h3>
     <input type="text" id="impName" placeholder="예: 신장내과">
     <h3>JSON</h3>
-    <textarea id="impJson" spellcheck="false" placeholder='{"topics": [{"name": "거대적혈모구빈혈", "cards": ["비타민 B12 결핍", "위절제술", "채식주의자"]}]}'></textarea>
+    <textarea id="impJson" spellcheck="false" placeholder='{"topics": [{"name": "거대적혈모구빈혈", "원인": ["비타민 B12 결핍"], "역학": ["채식주의자"], "진단": ["MCV > 100"]}]}'></textarea>
     <div id="impMsg" class="msg"></div>
     <div class="btn-row">
       <button id="btnImpSave" class="btn primary">저장</button>
@@ -479,11 +493,25 @@ function rollDiff() {
 
 // ---------- Tracks (과목) ----------
 let TRACKS = [];
+// 키워드 카테고리 (데이터 파일에서 주제마다 "역학": [...], "원인": [...] 처럼 묶어 둔다)
+const CAT_ORDER = ['역학', '원인', '증상', '진단', '치료', '예후', '기타'];
+const CAT_LABEL = { 역학: '역학', 원인: '원인·병태생리', 증상: '증상·징후', 진단: '진단', 치료: '치료', 예후: '합병증·예후', 기타: '기타' };
+const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+// 카테고리별 묶음 또는 예전 "cards" 배열 → { name, cards: [...], cats: { 키워드: 카테고리 } }
+function normalizeTopic(t) {
+  const cards = [], cats = {};
+  const add = (w, c) => { if (typeof w !== 'string' || !w.trim()) return; w = w.trim(); if (has(cats, w)) return; cats[w] = c; cards.push(w); };
+  CAT_ORDER.forEach(c => { if (Array.isArray(t[c])) t[c].forEach(w => add(w, c)); });
+  if (Array.isArray(t.cards)) t.cards.forEach(w => add(w, (t.cats && typeof w === 'string' && t.cats[w.trim()]) || '기타'));
+  return { name: String(t.name || '').trim(), cards, cats };
+}
+const normalizeTrack = tr => ({ ...tr, topics: (tr.topics || []).filter(t => t && t.name).map(normalizeTopic) });
 function loadTracks() {
-  const builtin = (window.MEDITAIRE_TRACKS || []).filter(t => t && t.id && Array.isArray(t.topics));
-  const custom = store.get('customPacks', []).map(p => ({ ...p, custom: true }));
+  const builtin = (window.MEDITAIRE_TRACKS || []).filter(t => t && t.id && Array.isArray(t.topics)).map(normalizeTrack);
+  const custom = store.get('customPacks', []).map(p => normalizeTrack({ ...p, custom: true }));
   TRACKS = [...builtin, ...custom];
 }
+const topicByName = name => { for (const tr of TRACKS) { const t = tr.topics.find(x => x.name === name); if (t) return t; } return null; };
 const trackById = id => TRACKS.find(t => t.id === id);
 const settings = Object.assign({ tracks: [], sound: true }, store.get('settings', {}));
 const saveSettings = () => { store.set('settings', settings); touch(); };
@@ -622,7 +650,8 @@ function pickTopics(trackIds, want) {
     // 이번 판에 낼 키워드 수: 4~8장 중 무작위 (데이터가 적으면 가진 만큼)
     const lo = Math.min(all.length, 4), hi = Math.min(all.length, MAX_WORDS);
     const k = lo + Math.floor(Math.random() * (hi - lo + 1));
-    out.push({ name: t.name, track: t.track, cards: shuffle(all.slice()).slice(0, k) });
+    const cards = shuffle(all.slice()).slice(0, k);
+    out.push({ name: t.name, track: t.track, cards, cats: Object.fromEntries(cards.map(w => [w, (t.cats && t.cats[w]) || '기타'])) });
   }
   return out;
 }
@@ -630,7 +659,7 @@ function pickTopics(trackIds, want) {
 function dealOnce(trackIds, diffKey) {
   const d = DIFFS[diffKey];
   const picked = pickTopics(trackIds, d.topics);
-  const topics = picked.map(t => ({ name: t.name, track: t.track, n: t.cards.length, words: t.cards }));
+  const topics = picked.map(t => ({ name: t.name, track: t.track, n: t.cards.length, words: t.cards, cats: t.cats }));
   const cards = {}, ids = [];
   picked.forEach((t, ti) => {
     cards['t' + ti] = { id: 't' + ti, text: t.name, topic: ti, isTopic: true };
@@ -1423,17 +1452,34 @@ function showResult() {
   const mk = G.mistakes || {};
   const confused = Object.keys(mk).map(Number).sort((a, b) => mk[b] - mk[a]);
   $('#mistakeWrap').classList.toggle('hidden', !confused.length);
-  $('#mistakes').innerHTML = confused.map(i => {
-    const t = G.topics[i];
-    return `<div class="t miss"><b>${esc(t.name)}</b> <span class="cnt">잘못 옮김 ${mk[i]}회</span><div class="ws">${t.words.map(w => `<span>${esc(w)}</span>`).join('')}</div></div>`;
-  }).join('');
-  $('#review').innerHTML = G.topics.map((t, i) => {
-    const done = G.completed.includes(i);
-    return `<div class="t ${done ? '' : 'no'}"><b>${done ? '✓ ' : ''}${esc(t.name)}</b> <span class="sub">(${t.n})</span><div class="ws">${t.words.map(w => `<span>${esc(w)}</span>`).join('')}</div></div>`;
-  }).join('');
+  $('#mistakes').innerHTML = confused.map(i => topicSheet(i, 'miss', `<span class="cnt">잘못 옮김 ${mk[i]}회</span>`)).join('');
+  $('#review').innerHTML = G.topics.map((t, i) => topicSheet(i, G.completed.includes(i) ? '' : 'no', '')).join('');
   hideOverlays();
   $('#result').classList.remove('hidden');
   $('#result').scrollTop = 0;
+}
+
+// 복습용 주제 정리: 데이터베이스의 키워드 전체를 카테고리 순서로. 이번 판에 안 나온 키워드는 흐리게.
+function sheetRows(i) {
+  const t = G.topics[i], db = topicByName(t.name);
+  const words = db ? db.cards : t.words, cats = db ? db.cats : (t.cats || {});
+  const shown = new Set(t.words);
+  return CAT_ORDER.map(c => ({ c, ws: words.filter(w => (cats[w] || '기타') === c) })).filter(r => r.ws.length)
+    .map(r => ({ ...r, ws: r.ws.map(w => ({ w, shown: shown.has(w) })) }));
+}
+function topicSheet(i, cls, extra) {
+  const t = G.topics[i], done = G.completed.includes(i);
+  const rows = sheetRows(i).map(r => `<div class="cr"><em class="cat c-${r.c}">${CAT_LABEL[r.c]}</em><div class="ws">${r.ws.map(x => `<span class="${x.shown ? '' : 'extra'}">${esc(x.w)}</span>`).join('')}</div></div>`).join('');
+  return `<div class="t ${cls}"><div class="th"><b>${cls !== 'miss' && done ? '✓ ' : ''}${esc(t.name)}</b> ${extra}<button class="copy" data-copy="${i}">🤖 AI 질문 복사</button></div>${rows}</div>`;
+}
+function topicText(i) {
+  return `■ ${G.topics[i].name}\n` + sheetRows(i).map(r => `- ${CAT_LABEL[r.c]}: ${r.ws.map(x => x.w).join(', ')}`).join('\n');
+}
+const AI_ASK = '위 키워드를 바탕으로 이 질환을 한국 의사국가고시(KMLE) 대비용으로 역학 → 원인·병태생리 → 증상·징후 → 진단 → 치료 → 합병증·예후 순서로 정리해 줘. 각 키워드가 왜 이 질환과 연결되는지, 헷갈리기 쉬운 감별 질환과 기출 포인트도 알려줘.';
+async function copyText(text, okMsg) {
+  try { await navigator.clipboard.writeText(text); }
+  catch (_) { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (__) {} ta.remove(); }
+  toast(okMsg, 'good');
 }
 
 // ---------- 하트 충전 퀴즈: 10초 객관식, 5연속 정답 → 하트 +1 ----------
@@ -1598,12 +1644,13 @@ async function backupAction() {
 // ---------- Importer ----------
 const PROMPT = `너는 한국 의사국가고시(KMLE) 암기용 카드 게임 데이터를 만드는 도우미야.
 아래 [단원] 내용에서 주제(질환) 12~20개를 골라, 각 주제에 딸린 핵심 키워드 카드를 넉넉하게 6~10장씩 만들어서 설명 없이 JSON 하나로만 답해줘.
+키워드는 카테고리별로 나눠 줘: 역학(호발 · 위험인자) / 원인(원인 · 병태생리) / 증상(증상 · 징후) / 진단(검사 · 영상 · 조직) / 치료 / 예후(합병증 · 예후). 해당 없는 카테고리는 빼도 돼.
 
 형식:
 {
   "topics": [
-    { "name": "거대적혈모구빈혈", "cards": ["비타민 B12 결핍", "엽산 결핍", "위절제술", "채식주의자", "손발 저림", "MCV > 100"] },
-    { "name": "만성 골수성 백혈병 (CML)", "cards": ["BCR-ABL", "필라델피아 염색체 t(9;22)", "이마티닙 (TKI)", "거대 비장"] }
+    { "name": "거대적혈모구빈혈", "역학": ["위절제술 (내인자 소실)", "채식주의자"], "원인": ["비타민 B12 결핍", "엽산 결핍"], "증상": ["손발 저림"], "진단": ["MCV > 100"] },
+    { "name": "만성 골수성 백혈병 (CML)", "증상": ["비장비대 O"], "진단": ["BCR-ABL", "필라델피아 염색체 t(9;22)"], "치료": ["이마티닙 (TKI)"], "예후": ["급성기 (blast crisis) 전환"] }
   ]
 }
 
@@ -1627,11 +1674,12 @@ function parseImport(raw) {
   if (!Array.isArray(list)) throw new Error('"topics" 배열을 찾지 못했어요');
   const topics = [], skipped = [];
   list.forEach(t => {
-    if (!t || typeof t.name !== 'string' || !Array.isArray(t.cards)) return;
-    // 다른 주제와 겹치는 키워드는 그대로 둔다 (겹치는 주제끼리는 같은 판에 안 나옴)
-    const cards = [...new Set(t.cards.filter(c => typeof c === 'string' && c.trim()).map(c => c.trim()))];
-    if (cards.length < MIN_WORDS) { skipped.push(t.name); return; }
-    topics.push({ name: t.name.trim(), cards: cards.slice(0, DB_MAX_WORDS) });
+    if (!t || typeof t.name !== 'string') return;
+    // 카테고리별 묶음("역학", "원인", …) 또는 "cards" 배열 모두 받는다. 다른 주제와 겹치는 키워드는 그대로 둔다.
+    const n = normalizeTopic(t);
+    if (n.cards.length < MIN_WORDS) { skipped.push(t.name); return; }
+    const cards = n.cards.slice(0, DB_MAX_WORDS);
+    topics.push({ name: n.name, cards, cats: Object.fromEntries(cards.map(w => [w, n.cats[w]])) });
   });
   if (topics.length < 4) throw new Error(`유효한 주제가 ${topics.length}개예요. 최소 4개 필요해요 (주제마다 키워드 ${MIN_WORDS}장 이상)`);
   return { topics, skipped, name: !Array.isArray(data) && typeof data.name === 'string' ? data.name : '' };
@@ -1721,6 +1769,11 @@ $('#trackChips').addEventListener('click', e => {
     settings.tracks = set.size === TRACKS.length ? [] : [...set];
   }
   saveSettings(); showMenu();
+});
+$('#result').addEventListener('click', e => {
+  const b = e.target.closest('[data-copy]');
+  if (b) return copyText(topicText(+b.dataset.copy) + '\n\n' + AI_ASK, '📋 복사했어요 — AI 채팅에 붙여넣으세요');
+  if (e.target.closest('#btnCopyAll')) copyText(G.topics.map((_, i) => topicText(i)).join('\n\n') + '\n\n' + AI_ASK.replace('이 질환을', '각 질환을'), '📋 이번 판 주제를 모두 복사했어요');
 });
 $('#resultButtons').addEventListener('click', e => {
   const act = e.target.closest('[data-act]')?.dataset.act;
@@ -1932,7 +1985,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
 }
 
-window.__meditaire = { sync, syncNow, mergeSaves, localSnapshot, repairInfo, applyFreezes, buyFreeze, repairStreak, streakInfo, missionState, mission, markAttendance, dayKey, exportCode, importCode, recordMistake, sfx, get G() { return G; }, get busy() { return busy; }, progress, openQuiz, answerQuiz, get quiz() { return quiz; }, canDrop, legalMoves, move, draw, simulate, dealOnce, newStage, startStage, doMove, doDraw, runOf, DIFFS };
+window.__meditaire = { topicText, normalizeTopic, get TRACKS() { return TRACKS; }, sync, syncNow, mergeSaves, localSnapshot, repairInfo, applyFreezes, buyFreeze, repairStreak, streakInfo, missionState, mission, markAttendance, dayKey, exportCode, importCode, recordMistake, sfx, get G() { return G; }, get busy() { return busy; }, progress, openQuiz, answerQuiz, get quiz() { return quiz; }, canDrop, legalMoves, move, draw, simulate, dealOnce, newStage, startStage, doMove, doDraw, runOf, DIFFS };
 })();
 </script>
 </body>
