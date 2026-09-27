@@ -219,6 +219,9 @@ input[type=text] { width: 100%; }
 .c-역학 { background: #2c4a6b; color: #bcd9ff; } .c-원인 { background: #4b3a6b; color: #dcc9ff; } .c-증상 { background: #6b4a2c; color: #ffd9b0; }
 .c-진단 { background: #2c5a4f; color: #b5f0dc; } .c-치료 { background: #5a5a2c; color: #f3f0a8; } .c-예후 { background: #6b2c3a; color: #ffc0cc; } .c-기타 { background: #444; color: #ccc; }
 .review .t .ws span.extra { opacity: .45; }
+.review .t .ws span.hi { background: var(--gold); color: #2a2208; font-weight: 800; }
+.qtag { font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 99px; }
+.qtag.ok { background: rgba(123,224,166,.25); color: var(--good); } .qtag.no { background: rgba(255,122,107,.22); color: var(--bad); }
 .copy { margin-left: auto; background: rgba(255,255,255,.1); border: 0; border-radius: 8px; padding: 5px 9px; font-size: 12px; color: var(--ink); }
 .review-head { display: flex; align-items: center; } .review-head h3 { flex: 1; }
 /* 출석 · 미션 */
@@ -391,6 +394,8 @@ input[type=text] { width: 100%; }
     <div id="qText" class="qtext"></div>
     <div id="qOpts" class="opts"></div>
     <div id="qMsg" class="qmsg"></div>
+    <button id="btnQuizNext" class="btn primary hidden" style="width:100%;margin-top:10px">다음 문제 ▶</button>
+    <div id="qSheet" class="review" style="margin-top:12px"></div>
     <div class="btn-row"><button id="btnQuizClose" class="btn">그만하기</button></div>
   </div>
 </section>
@@ -1472,6 +1477,18 @@ function topicSheet(i, cls, extra) {
   const rows = sheetRows(i).map(r => `<div class="cr"><em class="cat c-${r.c}">${CAT_LABEL[r.c]}</em><div class="ws">${r.ws.map(x => `<span class="${x.shown ? '' : 'extra'}">${esc(x.w)}</span>`).join('')}</div></div>`).join('');
   return `<div class="t ${cls}"><div class="th"><b>${cls !== 'miss' && done ? '✓ ' : ''}${esc(t.name)}</b> ${extra}<button class="copy" data-copy="${i}">🤖 AI 질문 복사</button></div>${rows}</div>`;
 }
+// 퀴즈용: 데이터베이스 주제 이름으로 정리표 만들기 (hi = 강조할 키워드)
+function dbSheet(name, hi, tag) {
+  const t = topicByName(name);
+  if (!t) return '';
+  const rows = CAT_ORDER.map(c => ({ c, ws: t.cards.filter(w => (t.cats[w] || '기타') === c) })).filter(r => r.ws.length)
+    .map(r => `<div class="cr"><em class="cat c-${r.c}">${CAT_LABEL[r.c]}</em><div class="ws">${r.ws.map(w => `<span class="${w === hi ? 'hi' : ''}">${esc(w)}</span>`).join('')}</div></div>`).join('');
+  return `<div class="t"><div class="th"><b>${esc(name)}</b> ${tag || ''}<button class="copy" data-copyname="${esc(name)}">🤖 AI 질문 복사</button></div>${rows}</div>`;
+}
+function dbText(name) {
+  const t = topicByName(name);
+  return !t ? name : `■ ${name}\n` + CAT_ORDER.map(c => ({ c, ws: t.cards.filter(w => (t.cats[w] || '기타') === c) })).filter(r => r.ws.length).map(r => `- ${CAT_LABEL[r.c]}: ${r.ws.join(', ')}`).join('\n');
+}
 function topicText(i) {
   return `■ ${G.topics[i].name}\n` + sheetRows(i).map(r => `- ${CAT_LABEL[r.c]}: ${r.ws.map(x => x.w).join(', ')}`).join('\n');
 }
@@ -1498,14 +1515,17 @@ function makeQuestion() {
     const wrongs = [...new Set(all.filter(others).flatMap(t => t.cards))].filter(c => !mine.has(c));
     const sameTrack = [...new Set(all.filter(t => others(t) && t.track === topic.track).flatMap(t => t.cards))].filter(c => !mine.has(c));
     const pool = sameTrack.length >= 3 ? sameTrack : wrongs;
-    return { html: `다음 중 <em>${esc(topic.name)}</em>의 키워드는?`, answer, opts: shuffle([answer, ...shuffle(pool.slice()).slice(0, 3)]) };
+    const opts = shuffle([answer, ...shuffle(pool.slice()).slice(0, 3)]);
+    const ownerOf = w => w === answer ? topic.name : ((all.find(t => others(t) && t.track === topic.track && t.cards.includes(w)) || all.find(t => others(t) && t.cards.includes(w)) || {}).name);
+    return { kind: 'keyword', topic: topic.name, html: `다음 중 <em>${esc(topic.name)}</em>의 키워드는?`, answer, opts, optTopics: opts.map(ownerOf) };
   }
   // "이 키워드는 어느 주제?" — 오답 보기 주제는 그 키워드를 갖고 있으면 안 됨
   const word = pickOne(topic.cards);
   const cands = all.filter(t => others(t) && !t.cards.includes(word));
   const sameTrack = cands.filter(t => t.track === topic.track);
   const pool = sameTrack.length >= 3 ? sameTrack : cands;
-  return { html: `<em>${esc(word)}</em><br>어느 주제의 키워드일까?`, answer: topic.name, opts: shuffle([topic.name, ...shuffle(pool.slice()).slice(0, 3).map(t => t.name)]) };
+  const opts = shuffle([topic.name, ...shuffle(pool.slice()).slice(0, 3).map(t => t.name)]);
+  return { kind: 'topic', topic: topic.name, word, html: `<em>${esc(word)}</em><br>어느 주제의 키워드일까?`, answer: topic.name, opts, optTopics: opts };
 }
 function renderQuizTop() {
   $('#qHearts').innerHTML = heartsHtml();
@@ -1524,6 +1544,8 @@ function nextQuestion() {
   renderQuizTop();
   quiz.q = makeQuestion();
   quiz.locked = false;
+  $('#qSheet').innerHTML = '';
+  $('#btnQuizNext').classList.add('hidden');
   $('#qText').innerHTML = quiz.q.html;
   $('#qOpts').innerHTML = quiz.q.opts.map((o, i) => `<button class="opt" data-i="${i}">${esc(o)}</button>`).join('');
   $('#qMsg').textContent = progress.hearts >= MAX_HEARTS ? '하트가 가득해서 연습 모드예요 (미션은 진행돼요)' : `${QUIZ_STREAK}문제 연속으로 맞히면 하트 +1`;
@@ -1552,19 +1574,28 @@ function answerQuiz(i) {
       if (!full) gainHeart();
       renderQuizTop();
       $('#qMsg').innerHTML = full ? '<b style="color:var(--good)">5연속 정답! (하트는 이미 가득)</b>' : '<b style="color:var(--good)">♥ 하트 +1!</b>';
-      setTimeout(nextQuestion, 1200);
-      return;
+    } else {
+      renderQuizTop();
+      $('#qMsg').innerHTML = '<span style="color:var(--good)">정답!</span>';
     }
-    renderQuizTop();
-    $('#qMsg').innerHTML = '<span style="color:var(--good)">정답!</span>';
-    setTimeout(nextQuestion, 600);
   } else {
     if (i >= 0) btns[i].classList.add('wrong');
     quiz.streak = 0;
     renderQuizTop();
     $('#qMsg').innerHTML = `<span style="color:var(--bad)">${i < 0 ? '시간 초과' : '오답'} — 연속 기록이 초기화됐어요</span>`;
-    setTimeout(nextQuestion, 1800);
   }
+  showQuizSheets(i, right);
+}
+// 답을 고른 뒤: 정답 주제의 키워드 전체 + (오답이면) 내가 고른 보기의 주제도
+function showQuizSheets(i, right) {
+  const q = quiz.q;
+  const hiAnswer = q.kind === 'keyword' ? q.answer : q.word;
+  let html = dbSheet(q.topic, hiAnswer, '<span class="qtag ok">정답 주제</span>');
+  if (i >= 0 && i !== right && q.optTopics[i] && q.optTopics[i] !== q.topic) {
+    html += dbSheet(q.optTopics[i], q.kind === 'keyword' ? q.opts[i] : null, `<span class="qtag no">${q.kind === 'keyword' ? '내가 고른 보기의 주제' : '내가 고른 주제'}</span>`);
+  }
+  $('#qSheet').innerHTML = html;
+  $('#btnQuizNext').classList.remove('hidden');
 }
 function closeQuiz() {
   stopQuizTimer();
@@ -1754,6 +1785,8 @@ $('#btnBackupClose').addEventListener('click', showMenu);
 $('#btnMistakeReset').addEventListener('click', () => { if (confirm('헷갈린 주제 누적 기록을 지울까요?')) { store.del('mistakes'); touch(); showMenu(); } });
 $('#optSound').addEventListener('change', e => { settings.sound = e.target.checked; saveSettings(); if (settings.sound) sfx.test(); });
 $('#btnQuizClose').addEventListener('click', closeQuiz);
+$('#btnQuizNext').addEventListener('click', nextQuestion);
+$('#qSheet').addEventListener('click', e => { const b = e.target.closest('[data-copyname]'); if (b) copyText(dbText(b.dataset.copyname) + '\n\n' + AI_ASK, '📋 복사했어요 — AI 채팅에 붙여넣으세요'); });
 $('#qOpts').addEventListener('click', e => { const b = e.target.closest('.opt'); if (b) answerQuiz(+b.dataset.i); });
 setInterval(() => {
   if (!$('#menu').classList.contains('hidden')) { $('#mHearts').innerHTML = heartsHtml(); $('#mHeartTimer').textContent = heartTimerText(); }
