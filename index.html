@@ -109,7 +109,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   position: fixed; left: 50%; transform: translateX(-50%) translateY(10px); bottom: calc(70px + var(--safe-b));
   background: rgba(10,25,22,.94); border: 1px solid rgba(255,255,255,.15); color: var(--ink);
   padding: 8px 14px; border-radius: 99px; font-size: 14px; opacity: 0; pointer-events: none;
-  transition: opacity .2s, transform .2s; z-index: 600; max-width: calc(100vw - 32px); text-align: center;
+  transition: opacity .2s, transform .2s; z-index: 950; max-width: calc(100vw - 32px); text-align: center;
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast.good b { color: var(--good); }
@@ -205,6 +205,33 @@ input[type=text] { width: 100%; }
 .review .t.miss b { color: var(--ink); }
 .review .cnt { font-size: 12px; font-weight: 700; color: var(--bad); margin-left: 4px; }
 .backup-code { min-height: 110px; font-size: 11px; word-break: break-all; }
+/* 복습 목록: 키워드 하나하나를 칩으로 (키워드 안의 '·'와 헷갈리지 않게) */
+.review .t .ws { display: flex; flex-wrap: wrap; gap: 5px; }
+.review .t .ws span { background: rgba(255,255,255,.07); border-radius: 6px; padding: 2px 7px; }
+/* 출석 · 미션 */
+.streak-row { display: flex; gap: 8px; margin: 10px 0 0; }
+.streak-row .btn { flex: 1; padding: 11px 8px; font-size: 14px; position: relative; }
+.streak-row .dot { position: absolute; top: 6px; right: 8px; width: 9px; height: 9px; border-radius: 50%; background: var(--bad); }
+.flame { color: #ff9f43; }
+.cal-head { display: flex; align-items: center; justify-content: space-between; margin: 14px 0 8px; }
+.cal-head b { font-size: 17px; }
+.cal-head button { background: rgba(255,255,255,.08); border: 0; border-radius: 10px; width: 40px; height: 36px; font-size: 18px; }
+.cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.cal .dow { text-align: center; font-size: 11px; color: var(--muted); padding-bottom: 2px; }
+.cal .d { aspect-ratio: 1; border-radius: 10px; background: rgba(255,255,255,.05); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 13px; color: var(--muted); }
+.cal .d.on { background: linear-gradient(160deg, #ffb347, #ff7e36); color: #3a1a00; font-weight: 800; }
+.cal .d.on small { font-size: 9px; font-weight: 700; opacity: .8; }
+.cal .d.today { box-shadow: inset 0 0 0 2px var(--ink); }
+.cal .d.future { opacity: .35; }
+.cal .d.blank { background: none; }
+.mission { background: rgba(255,255,255,.06); border-radius: 12px; padding: 12px; margin-bottom: 8px; display: flex; gap: 10px; align-items: center; }
+.mission .mtext { flex: 1; min-width: 0; }
+.mission .mtext b { display: block; font-size: 15px; margin-bottom: 6px; }
+.mission .bar { height: 7px; border-radius: 99px; background: rgba(255,255,255,.1); overflow: hidden; }
+.mission .bar div { height: 100%; background: var(--gold); }
+.mission .mtext small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }
+.mission .claim { flex: none; min-width: 74px; padding: 10px 8px; font-size: 13px; }
+.mission.done { opacity: .55; }
 /* 코인 · 하트 · 퀴즈 */
 .wallet { display: flex; gap: 10px; justify-content: center; margin: 4px 0 14px; }
 .wallet div { flex: 1; background: rgba(255,255,255,.07); border-radius: 12px; padding: 10px; text-align: center; }
@@ -259,7 +286,11 @@ input[type=text] { width: 100%; }
     </div>
     <button id="btnStart" class="btn primary start">시작</button>
     <div id="progressInfo" class="sub" style="margin-top:8px;text-align:center"></div>
-    <button id="btnQuiz" class="btn" style="width:100%;margin-top:10px">⏱ 하트 충전 퀴즈 (5연속 정답 → ❤ +1)</button>
+    <div class="streak-row">
+      <button id="btnCalendar" class="btn"><span class="flame">🔥</span> <b id="mStreak">0</b>일 연속 · 📅 달력</button>
+      <button id="btnMissions" class="btn">🎯 미션 <span id="mMission"></span><i id="mMissionDot" class="dot hidden"></i></button>
+    </div>
+    <button id="btnQuiz" class="btn" style="width:100%;margin-top:8px">⏱ 퀴즈 (5연속 정답 → ❤ +1)</button>
     <h3>연습할 트랙</h3>
     <div id="trackChips" class="chips"></div>
     <div class="sub" style="margin-top:8px">기본은 전체 과목 섞기. 트랙을 바꾸면 지금 단계를 새 카드로 다시 시작해요.</div>
@@ -303,6 +334,7 @@ input[type=text] { width: 100%; }
       <div><b id="rStage">0</b><span>단계</span></div>
     </div>
     <div id="resultEarned" class="earned"></div>
+    <div id="resultNotices" class="sub" style="margin-top:6px;line-height:1.8;font-size:14px"></div>
     <div id="resultButtons" class="btn-row"></div>
     <div id="reviewWrap">
       <div id="mistakeWrap">
@@ -327,6 +359,33 @@ input[type=text] { width: 100%; }
     <div id="qOpts" class="opts"></div>
     <div id="qMsg" class="qmsg"></div>
     <div class="btn-row"><button id="btnQuizClose" class="btn">그만하기</button></div>
+  </div>
+</section>
+
+<section id="calendar" class="overlay hidden">
+  <div class="panel">
+    <div class="logo" style="font-size:24px">출석 달력</div>
+    <p class="tagline">그날 한 판을 끝내면(클리어 · 포기 확정) 출석이에요. 숫자는 그날 클리어한 판 수.</p>
+    <div class="stats">
+      <div><b id="cStreak">0</b><span>🔥 연속 출석</span></div>
+      <div><b id="cBest">0</b><span>최장 연속</span></div>
+      <div><b id="cTotal">0</b><span>총 출석일</span></div>
+    </div>
+    <div class="cal-head"><button id="calPrev" aria-label="이전 달">‹</button><b id="calTitle"></b><button id="calNext" aria-label="다음 달">›</button></div>
+    <div id="calGrid" class="cal"></div>
+    <div id="calMsg" class="sub" style="margin-top:12px;text-align:center"></div>
+    <div class="btn-row"><button id="btnCalClose" class="btn">닫기</button></div>
+  </div>
+</section>
+
+<section id="missions" class="overlay hidden">
+  <div class="panel">
+    <div class="logo" style="font-size:24px">미션</div>
+    <h3 id="dailyHead">일일 미션</h3>
+    <div id="dailyList"></div>
+    <h3 id="weeklyHead">주간 미션</h3>
+    <div id="weeklyList"></div>
+    <div class="btn-row"><button id="btnMissionClose" class="btn">닫기</button></div>
   </div>
 </section>
 
@@ -525,7 +584,7 @@ function simulate(s0) {
 // 한 판의 주제 고르기: 데이터베이스상 키워드가 하나라도 겹치는 주제끼리는 같은 판에 넣지 않는다.
 // (예: CML과 Precursor B-cell ALL은 'BCR-ABL'을 공유 → CML이 뽑히면 ALL은 이번 판에서 제외)
 function pickTopics(trackIds, want) {
-  const pool = shuffle(trackIds.flatMap(id => (trackById(id)?.topics || []).filter(t => t.cards.length >= MIN_WORDS)));
+  const pool = shuffle(trackIds.flatMap(id => (trackById(id)?.topics || []).filter(t => t.cards.length >= MIN_WORDS).map(t => ({ ...t, track: id }))));
   const used = new Set(), out = [];
   for (const t of pool) {
     if (out.length >= want) break;
@@ -535,7 +594,7 @@ function pickTopics(trackIds, want) {
     // 이번 판에 낼 키워드 수: 4~8장 중 무작위 (데이터가 적으면 가진 만큼)
     const lo = Math.min(all.length, 4), hi = Math.min(all.length, MAX_WORDS);
     const k = lo + Math.floor(Math.random() * (hi - lo + 1));
-    out.push({ name: t.name, cards: shuffle(all.slice()).slice(0, k) });
+    out.push({ name: t.name, track: t.track, cards: shuffle(all.slice()).slice(0, k) });
   }
   return out;
 }
@@ -543,7 +602,7 @@ function pickTopics(trackIds, want) {
 function dealOnce(trackIds, diffKey) {
   const d = DIFFS[diffKey];
   const picked = pickTopics(trackIds, d.topics);
-  const topics = picked.map(t => ({ name: t.name, n: t.cards.length, words: t.cards }));
+  const topics = picked.map(t => ({ name: t.name, track: t.track, n: t.cards.length, words: t.cards }));
   const cards = {}, ids = [];
   picked.forEach((t, ti) => {
     cards['t' + ti] = { id: 't' + ti, text: t.name, topic: ti, isTopic: true };
@@ -587,6 +646,154 @@ function snapshot(s) { return JSON.stringify({ cols: s.cols, slots: s.slots, sto
 const saveGame = () => { if (G) store.set('game', { ...G, history: G.history.slice(-80) }); };
 const pushHistory = () => { G.history.push(snapshot(G)); if (G.history.length > 400) G.history.shift(); };
 
+// ---------- 출석 (연속 출석 · 달력) ----------
+// 기기 시간 기준 날짜. 그날 한 판을 끝내면 출석. days: { 'YYYY-MM-DD': { g: 끝낸 판, c: 클리어 } }
+const pad2 = n => String(n).padStart(2, '0');
+const dayKey = (d = new Date()) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+const addDays = (key, n) => { const [y, m, d] = key.split('-').map(Number); return dayKey(new Date(y, m - 1, d + n)); };
+function streakInfo() {
+  const days = store.get('days', {});
+  const today = dayKey();
+  let cur = 0, k = days[today] ? today : addDays(today, -1);
+  while (days[k]) { cur++; k = addDays(k, -1); }
+  let best = 0, run = 0, prev = null;
+  Object.keys(days).sort().forEach(d => { run = prev && addDays(prev, 1) === d ? run + 1 : 1; best = Math.max(best, run); prev = d; });
+  return { cur, best, total: Object.keys(days).length, today: !!days[today] };
+}
+function markAttendance(won) {
+  const days = store.get('days', {}), today = dayKey(), first = !days[today];
+  const d = days[today] = days[today] || { g: 0, c: 0 };
+  d.g++; if (won) d.c++;
+  store.set('days', days);
+  if (first) {
+    mission('attend', 1);
+    notify(`🔥 <b>${streakInfo().cur}일 연속</b> 출석!`);
+  }
+}
+
+// 판이 끝날 때 생긴 알림은 결과 화면에 모아서 보여주고, 게임 중/퀴즈 중에는 토스트로
+let notices = [];
+function notify(html) {
+  if (G && G.over) notices.push(html);
+  else toast(html, 'good');
+}
+
+// ---------- 미션 (일일 3개 · 주간 3개, 날짜로 정해져서 새로고침해도 그대로) ----------
+const DAILY_REWARD = 50, WEEKLY_REWARD = 500;
+const MISSIONS = {
+  daily: [
+    { id: 'clear',   ev: 'clear',   targets: [1, 2],      text: n => `단계 ${n}판 클리어` },
+    { id: 'topic',   ev: 'topic',   targets: [6, 8, 10],  text: n => `주제 ${n}개 완성` },
+    { id: 'keyword', ev: 'keyword', targets: [30, 40],    text: n => `키워드 카드 ${n}장을 주제 칸에 올리기` },
+    { id: 'clean',   ev: 'clean',   targets: [1],         text: () => '되돌리기 없이 한 판 클리어' },
+    { id: 'perfect', ev: 'perfect', targets: [1],         text: () => '한 번도 잘못 놓지 않고 한 판 클리어' },
+    { id: 'spare',   ev: 'spare',   targets: [10, 15],    text: n => `이동 ${n}번 이상 남기고 클리어`, once: true },
+    { id: 'quiz',    ev: 'quiz',    targets: [10, 15],    text: n => `퀴즈 ${n}문제 맞히기` },
+    { id: 'track',   ev: 'track',   targets: [2, 3],      text: (n, m) => `오늘의 과목 [${m.trackName}] 주제 ${n}개 완성` }
+  ],
+  weekly: [
+    { id: 'attend',  ev: 'attend',  targets: [5],         text: n => `${n}일 출석` },
+    { id: 'clear',   ev: 'clear',   targets: [8, 10],     text: n => `단계 ${n}판 클리어` },
+    { id: 'topic',   ev: 'topic',   targets: [50, 70],    text: n => `주제 ${n}개 완성` },
+    { id: 'perfect', ev: 'perfect', targets: [3],         text: n => `잘못 놓지 않고 ${n}판 클리어` },
+    { id: 'quiz',    ev: 'quiz',    targets: [40],        text: n => `퀴즈 ${n}문제 맞히기` }
+  ]
+};
+function seeded(str) { let h = 2166136261; for (const ch of str) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return () => { h = Math.imul(h ^ (h >>> 15), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909); h ^= h >>> 16; return (h >>> 0) / 4294967296; }; }
+const weekKey = (key = dayKey()) => { const [y, m, d] = key.split('-').map(Number); const dt = new Date(y, m - 1, d); return addDays(key, -((dt.getDay() + 6) % 7)); }; // 월요일 날짜
+function rollMissions(kind, seedKey) {
+  const rnd = seeded(kind + seedKey), pool = MISSIONS[kind].slice(), out = [];
+  while (out.length < 3 && pool.length) {
+    const def = pool.splice(Math.floor(rnd() * pool.length), 1)[0];
+    const m = { id: def.id, target: def.targets[Math.floor(rnd() * def.targets.length)], progress: 0, claimed: false };
+    if (def.id === 'track') {
+      if (!TRACKS.length) continue;
+      const t = TRACKS[Math.floor(rnd() * TRACKS.length)];
+      m.trackId = t.id; m.trackName = t.name;
+    }
+    out.push(m);
+  }
+  return out;
+}
+function missionState() {
+  const st = store.get('missions', {}), today = dayKey(), wk = weekKey();
+  let changed = false;
+  if (st.day !== today) { st.day = today; st.daily = rollMissions('daily', today); changed = true; }
+  if (st.week !== wk) { st.week = wk; st.weekly = rollMissions('weekly', wk); changed = true; }
+  if (changed) store.set('missions', st);
+  return st;
+}
+const defOf = (kind, m) => MISSIONS[kind].find(d => d.id === m.id);
+const missionText = (kind, m) => defOf(kind, m).text(m.target, m);
+// 게임 이벤트 → 미션 진행. spare처럼 "한 번에 조건 달성"형은 value가 목표 이상이면 완료.
+function mission(ev, amount = 1, extra) {
+  const st = missionState();
+  let done = [];
+  ['daily', 'weekly'].forEach(kind => st[kind].forEach(m => {
+    const def = defOf(kind, m);
+    if (!def || def.ev !== ev || m.progress >= m.target) return;
+    if (ev === 'track' && extra !== m.trackId) return;
+    const before = m.progress;
+    m.progress = def.once ? (amount >= m.target ? m.target : m.progress) : Math.min(m.target, m.progress + amount);
+    if (before < m.target && m.progress >= m.target) done.push({ kind, m });
+  }));
+  store.set('missions', st);
+  done.forEach(({ kind, m }) => notify(`🎯 미션 완료: <b>${esc(missionText(kind, m))}</b> — 메뉴 › 미션에서 받기`));
+}
+const claimable = () => { const st = missionState(); return ['daily', 'weekly'].reduce((n, k) => n + st[k].filter(m => m.progress >= m.target && !m.claimed).length, 0); };
+function claimMission(kind, idx) {
+  const st = missionState(), m = st[kind][idx];
+  if (!m || m.claimed || m.progress < m.target) return;
+  m.claimed = true;
+  store.set('missions', st);
+  const r = kind === 'daily' ? DAILY_REWARD : WEEKLY_REWARD;
+  progress.coins += r; saveProgress();
+  sfx.chime();
+  toast(`🪙 +${r} 코인!`, 'good');
+  showMissions();
+}
+function untilText(ms) { const h = Math.floor(ms / 3600000), m = Math.floor(ms / 60000) % 60; return h >= 24 ? `${Math.floor(h / 24)}일 ${h % 24}시간` : `${h}시간 ${m}분`; }
+function showMissions() {
+  const st = missionState(), now = new Date();
+  const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const [y, mo, d] = st.week.split('-').map(Number), endOfWeek = new Date(y, mo - 1, d + 7);
+  $('#dailyHead').textContent = `일일 미션 · 각 🪙${DAILY_REWARD} · ${untilText(endOfDay - now)} 후 새 미션`;
+  $('#weeklyHead').textContent = `주간 미션 · 각 🪙${WEEKLY_REWARD} · ${untilText(endOfWeek - now)} 후 새 미션`;
+  const row = (kind, m, i) => {
+    const pct = Math.round(100 * m.progress / m.target), ready = m.progress >= m.target && !m.claimed;
+    const hint = m.id === 'track' && !selectedTracks().includes(m.trackId) ? '<small>연습할 트랙에 이 과목이 포함돼 있어야 진행돼요</small>' : '';
+    return `<div class="mission ${m.claimed ? 'done' : ''}"><div class="mtext"><b>${esc(missionText(kind, m))}</b><div class="bar"><div style="width:${pct}%"></div></div><small>${m.progress} / ${m.target}</small>${hint}</div>
+      <button class="btn claim ${ready ? 'primary' : ''}" data-claim="${kind}:${i}" ${ready ? '' : 'disabled'}>${m.claimed ? '받음 ✓' : ready ? '받기' : '🪙' + (kind === 'daily' ? DAILY_REWARD : WEEKLY_REWARD)}</button></div>`;
+  };
+  $('#dailyList').innerHTML = st.daily.map((m, i) => row('daily', m, i)).join('');
+  $('#weeklyList').innerHTML = st.weekly.map((m, i) => row('weekly', m, i)).join('');
+  hideOverlays();
+  $('#missions').classList.remove('hidden');
+}
+let calMonth = null;
+function showCalendar(delta) {
+  const now = new Date();
+  if (!calMonth || delta === undefined) calMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  else calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + delta, 1);
+  const days = store.get('days', {}), st = streakInfo(), today = dayKey();
+  $('#cStreak').textContent = st.cur; $('#cBest').textContent = st.best; $('#cTotal').textContent = st.total;
+  const y = calMonth.getFullYear(), m = calMonth.getMonth();
+  $('#calTitle').textContent = `${y}년 ${m + 1}월`;
+  const first = new Date(y, m, 1).getDay(), last = new Date(y, m + 1, 0).getDate();
+  let html = ['일', '월', '화', '수', '목', '금', '토'].map(d => `<div class="dow">${d}</div>`).join('');
+  for (let i = 0; i < first; i++) html += '<div class="d blank"></div>';
+  let monthCount = 0;
+  for (let d = 1; d <= last; d++) {
+    const k = `${y}-${pad2(m + 1)}-${pad2(d)}`, rec = days[k];
+    if (rec) monthCount++;
+    html += `<div class="d ${rec ? 'on' : ''} ${k === today ? 'today' : ''} ${k > today ? 'future' : ''}">${d}${rec && rec.c ? `<small>${rec.c}판</small>` : ''}</div>`;
+  }
+  $('#calGrid').innerHTML = html;
+  $('#calMsg').textContent = st.today ? `오늘 출석 완료! 이번 달 ${monthCount}일 출석` : `오늘 한 판을 끝내면 ${st.cur + 1}일 연속이 돼요 · 이번 달 ${monthCount}일 출석`;
+  hideOverlays();
+  $('#calendar').classList.remove('hidden');
+}
+
 // 하트: 가득 차 있지 않으면 heartFrom부터 30분마다 1개씩 회복
 function syncHearts() {
   const now = Date.now();
@@ -628,7 +835,7 @@ function spend(cost) {
 function undo() {
   if (busy || !G || !G.history.length) return;
   if (!spend(COST_UNDO)) return;
-  Object.assign(G, JSON.parse(G.history.pop()), { fail: null });
+  Object.assign(G, JSON.parse(G.history.pop()), { fail: null, undoUsed: true });
   hideOverlays();
   render(); saveGame();
   toast(`↶ 되돌렸어요 (−🪙${COST_UNDO})`);
@@ -645,6 +852,7 @@ function giveUp() {
   if (!G || !G.over || G.won || G.settled) return;
   loseHeart();
   G.settled = true;
+  markAttendance(false);
   saveGame(); showResult();
 }
 // 같은 판 처음부터 (하트가 있어야 함)
@@ -652,7 +860,7 @@ function retry() {
   if (!G) return;
   syncHearts();
   if (progress.hearts <= 0) return openQuiz();
-  Object.assign(G, JSON.parse(G.initial), { history: [], limit: G.baseLimit || G.limit, fail: null, settled: false });
+  Object.assign(G, JSON.parse(G.initial), { history: [], limit: G.baseLimit || G.limit, fail: null, settled: false, undoUsed: false, wrongDrops: 0 });
   hideOverlays();
   render(); saveGame();
 }
@@ -680,8 +888,11 @@ function doMove(src, dst, fromEls) {
   const from = (fromEls || [...board.querySelectorAll(`[data-src="${src}"]`)])
     .map(el => ({ el: el.cloneNode(true), r: el.getBoundingClientRect() }));
   if (dst[0] === 'A') sfx.snap(0.22); // 카드가 날아가 닿는 순간에 맞춰 재생
+  const placed = dst[0] === 'A' ? runOf(G, src).filter(id => !G.cards[id].isTopic).length : 0;
   pushHistory();
   const res = move(G, src, dst);
+  if (placed) mission('keyword', placed);
+  if (res) { mission('topic', 1); mission('track', 1, G.topics[res.completed].track); }
   render();
   busy = true;
   animateMove(from, dst, () => {
@@ -790,6 +1001,11 @@ function finish(fail) {
     progress.stage = G.stage + 1; progress.cleared++;
     G.settled = true;
     saveProgress();
+    mission('clear', 1);
+    if (!G.undoUsed) mission('clean', 1);
+    if (!G.wrongDrops) mission('perfect', 1);
+    mission('spare', G.limit - G.moves);
+    markAttendance(true);
   }
   busy = true;
   setTimeout(() => { busy = false; showResult(); }, G.won ? 900 : 600);
@@ -805,6 +1021,7 @@ function recordMistake(src, dst) {
   else if (src !== 'B:' + k) { const top = topOf(G, G.cols[k]); other = top ? top.topic : null; }
   if (other === null || other === mine) return;
   G.mistakes = G.mistakes || {};
+  G.wrongDrops = (G.wrongDrops || 0) + 1;
   const all = store.get('mistakes', {});
   [mine, other].forEach(t => {
     G.mistakes[t] = (G.mistakes[t] || 0) + 1;
@@ -947,7 +1164,7 @@ function render() {
   downFor = G;
   $('#stageName').innerHTML = `단계 ${G.stage}<span class="diff ${G.diff}">${DIFFS[G.diff].name}</span>`;
   syncHearts();
-  $('#hudSub').innerHTML = `<span class="hearts">♥</span>${progress.hearts} · 🪙${progress.coins.toLocaleString()} · ${esc(trackLabel(G.trackIds))}`;
+  $('#hudSub').innerHTML = `<span class="hearts">♥</span>${progress.hearts} · 🪙${progress.coins.toLocaleString()} · <span class="flame">🔥</span>${streakInfo().cur} · ${esc(trackLabel(G.trackIds))}`;
   const left = Math.max(0, G.limit - G.moves);
   $('#left').textContent = left;
   $('#left').classList.toggle('low', left <= 5);
@@ -1062,9 +1279,16 @@ function dropTargetAt(x, y) {
 }
 
 // ---------- Screens ----------
-function hideOverlays() { ['#menu', '#result', '#importer', '#quiz', '#backup'].forEach(s => $(s).classList.add('hidden')); }
+function hideOverlays() { ['#menu', '#result', '#importer', '#quiz', '#backup', '#calendar', '#missions'].forEach(s => $(s).classList.add('hidden')); }
 
 const canResume = () => G && !G.over && sameSet(G.trackIds, selectedTracks());
+function renderMenuStatus() {
+  const st = streakInfo(), ms = missionState(), n = claimable();
+  const doneCount = k => ms[k].filter(m => m.progress >= m.target).length;
+  $('#mStreak').textContent = st.cur;
+  $('#mMission').textContent = `${doneCount('daily')}/3 · 주간 ${doneCount('weekly')}/3`;
+  $('#mMissionDot').classList.toggle('hidden', !n);
+}
 function showMenu() {
   const sel = settings.tracks.filter(trackById);
   const chip = (id, label, on, count) => `<button class="chip ${on ? 'on' : ''}" data-track="${esc(id)}">${esc(label)}${count != null ? ` <small>${count}</small>` : ''}</button>`;
@@ -1075,8 +1299,8 @@ function showMenu() {
   $('#mHearts').innerHTML = heartsHtml();
   $('#mHeartTimer').textContent = heartTimerText();
   $('#mCoins').textContent = progress.coins.toLocaleString();
-  $('#btnQuiz').disabled = progress.hearts >= MAX_HEARTS;
   $('#optSound').checked = settings.sound;
+  renderMenuStatus();
   const allMk = Object.entries(store.get('mistakes', {})).sort((a, b) => b[1] - a[1]).slice(0, 12);
   $('#menuMistakeWrap').classList.toggle('hidden', !allMk.length);
   $('#menuMistakes').innerHTML = allMk.map(([n, c]) => `<span class="chip">${esc(n)} <small>${c}</small></span>`).join('');
@@ -1091,6 +1315,8 @@ function showResult() {
   $('#resultTitle').textContent = won ? `🎉 단계 ${G.stage} 클리어!` : `단계 ${G.stage} 실패`;
   $('#resultSub').textContent = won ? `이동 ${G.limit - G.moves}번을 남기고 모든 주제를 완성했어요` : (G.settled ? `하트 1개를 잃었어요 · 남은 하트 ${progress.hearts}` : reason);
   $('#resultEarned').textContent = won ? `🪙 +${G.earned || 0} 코인  (보유 ${progress.coins.toLocaleString()})` : '';
+  if (notices.length) { $('#resultNotices').innerHTML = notices.join('<br>'); notices = []; }
+  else if (!G.over || !G.settled) $('#resultNotices').innerHTML = '';
   $('#rMoves').textContent = `${G.moves}/${G.limit}`;
   $('#rDone').textContent = `${G.completed.length}/${G.topics.length}`;
   $('#rStage').textContent = G.stage;
@@ -1110,11 +1336,11 @@ function showResult() {
   $('#mistakeWrap').classList.toggle('hidden', !confused.length);
   $('#mistakes').innerHTML = confused.map(i => {
     const t = G.topics[i];
-    return `<div class="t miss"><b>${esc(t.name)}</b> <span class="cnt">잘못 옮김 ${mk[i]}회</span><div class="ws">${t.words.map(esc).join(' · ')}</div></div>`;
+    return `<div class="t miss"><b>${esc(t.name)}</b> <span class="cnt">잘못 옮김 ${mk[i]}회</span><div class="ws">${t.words.map(w => `<span>${esc(w)}</span>`).join('')}</div></div>`;
   }).join('');
   $('#review').innerHTML = G.topics.map((t, i) => {
     const done = G.completed.includes(i);
-    return `<div class="t ${done ? '' : 'no'}"><b>${done ? '✓ ' : ''}${esc(t.name)}</b> <span class="sub">(${t.n})</span><div class="ws">${t.words.map(esc).join(' · ')}</div></div>`;
+    return `<div class="t ${done ? '' : 'no'}"><b>${done ? '✓ ' : ''}${esc(t.name)}</b> <span class="sub">(${t.n})</span><div class="ws">${t.words.map(w => `<span>${esc(w)}</span>`).join('')}</div></div>`;
   }).join('');
   hideOverlays();
   $('#result').classList.remove('hidden');
@@ -1155,7 +1381,6 @@ function openQuiz() {
   hideOverlays();
   $('#quiz').classList.remove('hidden');
   quiz.streak = 0;
-  if (progress.hearts >= MAX_HEARTS) { renderQuizTop(); stopQuizTimer(); $('#qText').textContent = '하트가 가득 찼어요!'; $('#qOpts').innerHTML = ''; $('#qMsg').textContent = ''; return; }
   nextQuestion();
 }
 function stopQuizTimer() { clearTimeout(quiz.timer); cancelAnimationFrame(quiz.raf); }
@@ -1166,7 +1391,7 @@ function nextQuestion() {
   quiz.locked = false;
   $('#qText').innerHTML = quiz.q.html;
   $('#qOpts').innerHTML = quiz.q.opts.map((o, i) => `<button class="opt" data-i="${i}">${esc(o)}</button>`).join('');
-  $('#qMsg').textContent = `${QUIZ_STREAK}문제 연속으로 맞히면 하트 +1`;
+  $('#qMsg').textContent = progress.hearts >= MAX_HEARTS ? '하트가 가득해서 연습 모드예요 (미션은 진행돼요)' : `${QUIZ_STREAK}문제 연속으로 맞히면 하트 +1`;
   const bar = $('#qTimer'), t0 = performance.now();
   const tick = () => {
     const left = Math.max(0, 1 - (performance.now() - t0) / QUIZ_MS);
@@ -1185,12 +1410,13 @@ function answerQuiz(i) {
   btns[right].classList.add('right');
   if (i === right) {
     quiz.streak++;
+    mission('quiz', 1);
     if (quiz.streak >= QUIZ_STREAK) {
       quiz.streak = 0;
-      gainHeart();
+      const full = progress.hearts >= MAX_HEARTS;
+      if (!full) gainHeart();
       renderQuizTop();
-      $('#qMsg').innerHTML = '<b style="color:var(--good)">♥ 하트 +1!</b>';
-      if (progress.hearts >= MAX_HEARTS) { setTimeout(() => { $('#qText').textContent = '하트가 가득 찼어요!'; $('#qOpts').innerHTML = ''; }, 900); return; }
+      $('#qMsg').innerHTML = full ? '<b style="color:var(--good)">5연속 정답! (하트는 이미 가득)</b>' : '<b style="color:var(--good)">♥ 하트 +1!</b>';
       setTimeout(nextQuestion, 1200);
       return;
     }
@@ -1372,6 +1598,13 @@ $('#btnStart').addEventListener('click', () => {
   if (abandon('트랙이 바뀌어 새 카드로 시작해요.')) startStage();
 });
 $('#btnQuiz').addEventListener('click', openQuiz);
+$('#btnCalendar').addEventListener('click', () => showCalendar());
+$('#calPrev').addEventListener('click', () => showCalendar(-1));
+$('#calNext').addEventListener('click', () => showCalendar(1));
+$('#btnCalClose').addEventListener('click', showMenu);
+$('#btnMissions').addEventListener('click', showMissions);
+$('#btnMissionClose').addEventListener('click', showMenu);
+$('#dailyList').parentElement.addEventListener('click', e => { const b = e.target.closest('[data-claim]'); if (b) { const [k, i] = b.dataset.claim.split(':'); claimMission(k, +i); } });
 $('#btnExport').addEventListener('click', () => openBackup('export'));
 $('#btnImportSave').addEventListener('click', () => openBackup('import'));
 $('#btnBackupAction').addEventListener('click', backupAction);
@@ -1381,7 +1614,7 @@ $('#optSound').addEventListener('change', e => { settings.sound = e.target.check
 $('#btnQuizClose').addEventListener('click', closeQuiz);
 $('#qOpts').addEventListener('click', e => { const b = e.target.closest('.opt'); if (b) answerQuiz(+b.dataset.i); });
 setInterval(() => {
-  if (!$('#menu').classList.contains('hidden')) { $('#mHearts').innerHTML = heartsHtml(); $('#mHeartTimer').textContent = heartTimerText(); $('#btnQuiz').disabled = progress.hearts >= MAX_HEARTS; }
+  if (!$('#menu').classList.contains('hidden')) { $('#mHearts').innerHTML = heartsHtml(); $('#mHeartTimer').textContent = heartTimerText(); }
 }, 1000);
 $('#trackChips').addEventListener('click', e => {
   const b = e.target.closest('[data-track]');
@@ -1445,7 +1678,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
 }
 
-window.__meditaire = { exportCode, importCode, recordMistake, sfx, get G() { return G; }, get busy() { return busy; }, progress, openQuiz, answerQuiz, get quiz() { return quiz; }, canDrop, legalMoves, move, draw, simulate, dealOnce, newStage, startStage, doMove, doDraw, runOf, DIFFS };
+window.__meditaire = { streakInfo, missionState, mission, markAttendance, dayKey, exportCode, importCode, recordMistake, sfx, get G() { return G; }, get busy() { return busy; }, progress, openQuiz, answerQuiz, get quiz() { return quiz; }, canDrop, legalMoves, move, draw, simulate, dealOnce, newStage, startStage, doMove, doDraw, runOf, DIFFS };
 })();
 </script>
 </body>
