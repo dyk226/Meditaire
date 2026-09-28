@@ -166,7 +166,12 @@ input[type=text] { width: 100%; }
 .card .tlabel { right: 2.6em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card.topic.filled .tlabel { opacity: .85; font-size: .66em; }
 .card.topic.filled .txt { padding-top: 1.7em; font-weight: 800; color: var(--card-ink); }
-#left.low { color: var(--bad); }
+/* C구역 왼쪽: 남은 이동 (카드 한 장 크기) */
+.moves-box { position: absolute; border-radius: 8px; border: 2px solid rgba(243,239,228,.28); background: rgba(0,0,0,.18);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; }
+.moves-box b { font-size: 2.6em; font-weight: 800; font-variant-numeric: tabular-nums; }
+.moves-box span { font-size: .8em; color: var(--muted); margin-top: .5em; }
+.moves-box.low { border-color: var(--bad); } .moves-box.low b { color: var(--bad); }
 .diff { display: inline-block; font-size: 11px; font-weight: 800; padding: 1px 7px; border-radius: 99px; margin-left: 4px; vertical-align: 2px; }
 .diff.easy { background: #2e9e4f; color: #fff; }
 .diff.normal { background: #2f86d6; color: #fff; }
@@ -291,10 +296,6 @@ input[type=text] { width: 100%; }
   <header id="hud">
     <button id="btnMenu" class="icon-btn" aria-label="메뉴">☰</button>
     <div class="hud-title"><div id="stageName">Meditaire</div><div id="hudSub" class="sub"></div></div>
-    <div class="hud-stats">
-      <div><span class="lbl">남은 이동</span><b id="left">0</b></div>
-      <div><span class="lbl">완성</span><b id="done">0</b></div>
-    </div>
   </header>
   <main id="board"></main>
   <footer id="actions">
@@ -1212,6 +1213,14 @@ function render() {
   board.innerHTML = '';
   const n = g.n;
 
+  // C 왼쪽 끝: 남은 이동
+  const leftMoves = Math.max(0, G.limit - G.moves);
+  const mv = document.createElement('div');
+  mv.className = 'moves-box' + (leftMoves <= 5 ? ' low' : '');
+  Object.assign(mv.style, { left: g.x(0) + 'px', top: g.yC + 'px', width: g.w + 'px', height: g.h + 'px', fontSize: g.fs + 'px' });
+  mv.innerHTML = `<b id="left">${leftMoves}</b><span>남은 이동</span>`;
+  board.appendChild(mv);
+
   // C: 덱(오른쪽 끝) + 펼친 카드(왼쪽으로 최대 3장 부채꼴, 맨 위만 사용 가능)
   if (G.stock.length) {
     const st = document.createElement('div');
@@ -1284,10 +1293,6 @@ function render() {
   $('#stageName').innerHTML = `단계 ${G.stage}<span class="diff ${G.diff}">${DIFFS[G.diff].name}</span>`;
   syncHearts();
   $('#hudSub').innerHTML = `<span class="hearts">♥</span>${progress.hearts} · 🪙${progress.coins.toLocaleString()} · <span class="flame">🔥</span>${streakInfo().cur} · ${esc(trackLabel(G.trackIds))}`;
-  const left = Math.max(0, G.limit - G.moves);
-  $('#left').textContent = left;
-  $('#left').classList.toggle('low', left <= 5);
-  $('#done').textContent = `${G.completed.length}/${G.topics.length}`;
   $('#btnUndo').disabled = !G.history.length || G.over || progress.coins < COST_UNDO;
 }
 
