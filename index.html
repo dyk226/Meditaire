@@ -56,7 +56,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .hud-stats b { font-size: 18px; font-variant-numeric: tabular-nums; }
 
 /* Board: C(덱) → A(주제 칸) → B(펼침 칸) 순서로 절대 배치 */
-#board { flex: 1; position: relative; min-height: 0; touch-action: none; overflow: hidden; }
+#board { flex: 1; position: relative; min-height: 0; touch-action: none; overflow: hidden; -webkit-touch-callout: none; }
 .zone-label { position: absolute; font-size: 11px; color: rgba(243,239,228,.45); letter-spacing: .5px; }
 .slot {
   position: absolute; border-radius: 8px; border: 2px dashed rgba(243,239,228,.22);
@@ -229,6 +229,15 @@ input[type=text] { width: 100%; }
 .qtag.ok { background: rgba(123,224,166,.25); color: var(--good); } .qtag.no { background: rgba(255,122,107,.22); color: var(--bad); }
 .copy { margin-left: auto; background: rgba(255,255,255,.1); border: 0; border-radius: 8px; padding: 5px 9px; font-size: 12px; color: var(--ink); }
 .review-head { display: flex; align-items: center; } .review-head h3 { flex: 1; }
+/* ★ 나중에 볼 키워드 */
+.card .star { position: absolute; right: 3px; bottom: 2px; z-index: 3; font-style: normal; font-size: 1.05em; color: #e0a800; text-shadow: 0 0 2px #fff; }
+.card.pressing { transform: scale(.96); box-shadow: 0 0 0 3px rgba(242,195,91,.7), var(--shadow); transition: transform .45s, box-shadow .45s; }
+.moves-box small { font-size: .78em; color: var(--gold); margin-top: .45em; font-weight: 700; }
+.review .t .ws span.starw::before { content: '★ '; color: var(--gold); }
+.bm-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.06); font-size: 14px; }
+.bm-item .bw { flex: 1; min-width: 0; }
+.bm-item .bw small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.bm-item .x { flex: none; background: rgba(255,255,255,.08); border: 0; border-radius: 8px; width: 32px; height: 30px; color: var(--muted); }
 /* 출석 · 미션 */
 .streak-row { display: flex; gap: 8px; margin: 10px 0 0; }
 .streak-row .btn { flex: 1; padding: 11px 8px; font-size: 14px; position: relative; }
@@ -330,6 +339,7 @@ input[type=text] { width: 100%; }
     <div class="sub" style="margin-top:8px">기본은 전체 과목 섞기. 트랙을 바꾸면 지금 단계를 새 카드로 다시 시작해요.</div>
     <h3>효과음</h3>
     <div class="row"><label for="optSound">카드가 주제 칸에 붙을 때 소리<small>아이폰 무음 모드에서는 안 들릴 수 있어요</small></label><input type="checkbox" id="optSound"></div>
+    <button id="btnBookmarks" class="btn" style="width:100%;margin-top:14px">★ 나중에 볼 키워드 <b id="mBmCount"></b></button>
     <div id="menuMistakeWrap">
       <h3>지금까지 가장 헷갈린 주제</h3>
       <div id="menuMistakes" class="chips"></div>
@@ -351,6 +361,7 @@ input[type=text] { width: 100%; }
       <li><b>주제 카드</b>(노란 카드)는 <b>주제 칸(A)</b>에 올려요. 오른쪽 위 숫자가 그 주제의 키워드 카드 수예요. 키워드를 다 모으면 주제가 완성되어 칸이 비워져요.</li>
       <li><b>펼침 칸(B)</b>에서는 같은 주제의 키워드끼리만 쌓을 수 있고, 쌓인 카드는 <b>한 뭉치로만</b> 움직여요.</li>
       <li>카드는 <b>끌어서 놓아야</b> 움직여요. 카드를 탭하는 것만으로는 아무 일도 일어나지 않아요.</li>
+      <li>모르는 키워드 카드는 <b>꾹 누르면 ★ 나중에 보기</b>에 저장돼요 (이동 안 씀). 판이 끝나면 어느 주제 · 카테고리인지 정리해서 보여주고, 메뉴에서 모아 볼 수 있어요.</li>
       <li>주제 카드는 B의 <b>빈 칸</b>이나 <b>같은 주제 키워드 뭉치 위</b>에 놓을 수 있어요. 하지만 B에서 주제 카드 위에는 아무것도 못 올려요 — 키워드를 주제 카드 위에 모으는 건 A에서만.</li>
       <li>각 단계는 <b>정해진 이동 횟수</b> 안에 모든 주제를 완성해야 클리어! 덱을 넘기는 것도 1번으로 세요.</li>
       <li>난이도는 단계마다 무작위: 쉬움 25% · 보통 55% · 어려움 20% (어려움은 5칸).</li>
@@ -373,6 +384,10 @@ input[type=text] { width: 100%; }
     <div id="resultNotices" class="sub" style="margin-top:6px;line-height:1.8;font-size:14px"></div>
     <div id="resultButtons" class="btn-row"></div>
     <div id="reviewWrap">
+      <div id="starWrap">
+        <div class="review-head"><h3>★ 이번 판에 표시한 키워드</h3><button id="btnStarCopy" class="copy">🤖 AI에 물어보기 복사</button></div>
+        <div id="starList" class="review" style="margin-bottom:6px"></div>
+      </div>
       <div id="mistakeWrap">
         <h3>헷갈린 주제 — 이것부터 복습하세요</h3>
         <div id="mistakes" class="review"></div>
@@ -398,6 +413,16 @@ input[type=text] { width: 100%; }
     <button id="btnQuizNext" class="btn primary hidden" style="width:100%;margin-top:10px">다음 문제 ▶</button>
     <div id="qSheet" class="review" style="margin-top:12px"></div>
     <div class="btn-row"><button id="btnQuizClose" class="btn">그만하기</button></div>
+  </div>
+</section>
+
+<section id="bookmarks" class="overlay hidden">
+  <div class="panel">
+    <div class="logo" style="font-size:24px">★ 나중에 볼 키워드</div>
+    <p class="tagline">게임 중 키워드 카드를 꾹 누르면 여기에 모여요. 주제 · 카테고리별로 확인하고, 다 본 건 ×로 지우세요.</p>
+    <div class="btn-row" style="margin-top:0"><button id="btnBmCopy" class="btn primary">🤖 전체 AI에 물어보기 복사</button><button id="btnBmClear" class="btn">모두 지우기</button></div>
+    <div id="bmList" class="review" style="margin-top:12px"></div>
+    <div class="btn-row"><button id="btnBmClose" class="btn">닫기</button></div>
   </div>
 </section>
 
@@ -708,6 +733,36 @@ const saveProgress = () => store.set('progress', progress);
 function snapshot(s) { return JSON.stringify({ cols: s.cols, slots: s.slots, stock: s.stock, waste: s.waste, completed: s.completed, moves: s.moves, over: s.over, won: s.won }); }
 const saveGame = () => { if (G) { store.set('game', { ...G, history: G.history.slice(-80) }); touch(); } };
 const pushHistory = () => { G.history.push(snapshot(G)); if (G.history.length > 400) G.history.shift(); };
+
+// ---------- ★ 나중에 볼 키워드 ----------
+// bookmarks: [{ w: 키워드, topic: 주제, at: 시각, del?: true }] — 지운 것도 기록해 둬야 기기 동기화 때 되살아나지 않음
+const bmKey = (w, topic) => w + '\u0001' + topic;
+const bookmarks = () => store.get('bookmarks', []).filter(b => !b.del);
+const isStarred = (w, topic) => bookmarks().some(b => b.w === w && b.topic === topic);
+function setStar(w, topic, on) {
+  const all = store.get('bookmarks', []);
+  const i = all.findIndex(b => b.w === w && b.topic === topic);
+  const rec = { w, topic, at: Date.now() };
+  if (!on) rec.del = true;
+  if (i >= 0) all[i] = rec; else all.push(rec);
+  store.set('bookmarks', all);
+  touch();
+}
+const catOf = (w, topic) => { const t = topicByName(topic); return (t && t.cats[w]) || '기타'; };
+const BM_ASK = '위는 국시 공부 중 뜻이나 연관성을 잘 모르겠어서 표시해 둔 키워드야. 각 키워드가 해당 질환과 어떻게 연결되는지(기전 · 임상적 의미)와 국시에서 어떻게 출제되는지 짧게 설명해 줘.';
+const bmText = list => list.map(b => `- ${b.w} → ${b.topic} (${CAT_LABEL[catOf(b.w, b.topic)]})`).join('\n') + '\n\n' + BM_ASK;
+function toggleStar(cid) {
+  const c = G && G.cards[cid];
+  if (!c || c.isTopic) return;
+  const topic = G.topics[c.topic].name, on = !isStarred(c.text, topic);
+  setStar(c.text, topic, on);
+  G.starred = (G.starred || []).filter(id => id !== cid);
+  if (on) G.starred.push(cid);
+  saveGame();
+  sfx.snap(0);
+  toast(on ? `★ <b>${esc(c.text)}</b> 나중에 보기에 저장 — 판이 끝나면 정리해서 보여줘요` : `☆ 나중에 보기에서 뺐어요`, on ? 'good' : '');
+  render();
+}
 
 // ---------- 출석 (연속 출석 · 달력) ----------
 // 기기 시간 기준 날짜. 그날 한 판을 끝내면 출석. days: { 'YYYY-MM-DD': { g: 끝낸 판, c: 클리어 } }
@@ -1185,7 +1240,8 @@ function cardEl(id, g) {
   Object.assign(el.style, { width: g.w + 'px', height: g.h + 'px', fontSize: g.fs + 'px' });
   el.innerHTML = c.isTopic
     ? `<div class="tlabel">주제</div><div class="badge">${G.topics[c.topic].n}</div><div class="txt">${esc(c.text)}</div>`
-    : `<div class="txt">${esc(c.text)}</div>`;
+    : `<div class="txt">${esc(c.text)}</div>${isStarred(c.text, G.topics[c.topic].name) ? '<i class="star">★</i>' : ''}`;
+  if (!c.isTopic) el.dataset.cid = id; // 꾹 누르면 ★ 나중에 보기
   return el;
 }
 const place = (el, x, y, z) => { el.style.left = x + 'px'; el.style.top = y + 'px'; if (z != null) el.style.zIndex = z; return el; };
@@ -1218,7 +1274,8 @@ function render() {
   const mv = document.createElement('div');
   mv.className = 'moves-box' + (leftMoves <= 5 ? ' low' : '');
   Object.assign(mv.style, { left: g.x(0) + 'px', top: g.yC + 'px', width: g.w + 'px', height: g.h + 'px', fontSize: g.fs + 'px' });
-  mv.innerHTML = `<b id="left">${leftMoves}</b><span>남은 이동</span>`;
+  const nStar = (G.starred || []).length;
+  mv.innerHTML = `<b id="left">${leftMoves}</b><span>남은 이동</span>${nStar ? `<small>★ ${nStar}</small>` : ''}`;
   board.appendChild(mv);
 
   // C: 덱(오른쪽 끝) + 펼친 카드(왼쪽으로 최대 3장 부채꼴, 맨 위만 사용 가능)
@@ -1250,7 +1307,10 @@ function render() {
     if (s.placed.length) {
       el.classList.add('filled');
       el.querySelector('.tlabel').textContent = G.topics[s.topic].name;
-      el.querySelector('.txt').textContent = G.cards[s.placed[s.placed.length - 1]].text;
+      const lastId = s.placed[s.placed.length - 1], last = G.cards[lastId];
+      el.querySelector('.txt').textContent = last.text;
+      el.dataset.cid = lastId;
+      if (isStarred(last.text, G.topics[s.topic].name)) el.insertAdjacentHTML('beforeend', '<i class="star">★</i>');
     }
     el.dataset.drop = 'A:' + i;
     board.appendChild(place(el, g.x(i), g.yA, 5));
@@ -1348,17 +1408,35 @@ function toast(html, kind) {
 // ---------- Pointer: 카드는 끌어서 놓을 때만 움직인다 (탭은 아무 동작 없음). 덱은 탭으로 펼치기 ----------
 let drag = null;
 const board = $('#board');
+const LONG_PRESS_MS = 500;
 board.addEventListener('pointerdown', e => {
   if (busy || !G || G.over) return;
-  const el = e.target.closest('[data-src],[data-action]');
+  const el = e.target.closest('[data-src],[data-action],[data-cid]');
   if (!el) return;
   drag = { el, src: el.dataset.src, action: el.dataset.action, x0: e.clientX, y0: e.clientY, started: false, pid: e.pointerId };
+  // 키워드 카드를 움직이지 않고 꾹 누르면 ★ 나중에 보기 (끌기 시작하면 취소)
+  const cardForStar = e.target.closest('[data-cid]');
+  if (cardForStar) {
+    const d = drag;
+    cardForStar.classList.add('pressing');
+    d.pressEl = cardForStar;
+    d.press = setTimeout(() => {
+      if (drag !== d || d.started) return;
+      d.longPressed = true;
+      cardForStar.classList.remove('pressing');
+      toggleStar(cardForStar.dataset.cid);
+    }, LONG_PRESS_MS);
+  }
   try { board.setPointerCapture(e.pointerId); } catch (_) {}
 });
+const endPress = d => { if (d && d.press) { clearTimeout(d.press); d.press = null; if (d.pressEl) d.pressEl.classList.remove('pressing'); } };
 board.addEventListener('pointermove', e => {
-  if (!drag || drag.pid !== e.pointerId || !drag.src) return;
+  if (!drag || drag.pid !== e.pointerId) return;
+  if (!drag.src) { if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) >= 8) endPress(drag); return; }
   if (!drag.started) {
     if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 8) return;
+    if (drag.longPressed) return;
+    endPress(drag);
     startDrag();
   }
   drag.ghost.style.transform = `translate(${e.clientX - drag.dx}px, ${e.clientY - drag.dy}px)`;
@@ -1367,8 +1445,9 @@ board.addEventListener('pointerup', e => {
   if (!drag || drag.pid !== e.pointerId) return;
   const d = drag;
   drag = null;
+  endPress(d);
   if (!d.started) {
-    if (d.action === 'draw') doDraw();
+    if (d.action === 'draw' && !d.longPressed) doDraw();
     return;
   }
   const ghostCards = [...d.ghost.children];
@@ -1377,7 +1456,8 @@ board.addEventListener('pointerup', e => {
   else { if (tgt) recordMistake(d.src, tgt); render(); }
   d.ghost.remove();
 });
-board.addEventListener('pointercancel', () => { if (drag && drag.ghost) drag.ghost.remove(); drag = null; render(); });
+board.addEventListener('pointercancel', () => { endPress(drag); if (drag && drag.ghost) drag.ghost.remove(); drag = null; render(); });
+board.addEventListener('contextmenu', e => e.preventDefault()); // 꾹 누를 때 기기 메뉴가 뜨지 않게
 
 function startDrag() {
   drag.started = true;
@@ -1403,7 +1483,7 @@ function dropTargetAt(x, y) {
 }
 
 // ---------- Screens ----------
-function hideOverlays() { ['#menu', '#result', '#importer', '#quiz', '#backup', '#calendar', '#missions'].forEach(s => $(s).classList.add('hidden')); }
+function hideOverlays() { ['#menu', '#result', '#importer', '#quiz', '#backup', '#calendar', '#missions', '#bookmarks'].forEach(s => $(s).classList.add('hidden')); }
 
 const canResume = () => G && !G.over && sameSet(G.trackIds, selectedTracks());
 function renderMenuStatus() {
@@ -1418,6 +1498,19 @@ function renderMenuStatus() {
   $('#mMission').textContent = `${doneCount('daily')}/3 · 주간 ${doneCount('weekly')}/3`;
   $('#mMissionDot').classList.toggle('hidden', !n);
 }
+function showBookmarks() {
+  const list = bookmarks();
+  const byTopic = new Map();
+  list.slice().sort((a, b) => b.at - a.at).forEach(b => { if (!byTopic.has(b.topic)) byTopic.set(b.topic, []); byTopic.get(b.topic).push(b); });
+  $('#bmList').innerHTML = list.length ? [...byTopic].map(([topic, items]) => {
+    const order = w => CAT_ORDER.indexOf(catOf(w, topic));
+    const rows = items.sort((a, b) => order(a.w) - order(b.w)).map(b => `<div class="bm-item"><em class="cat c-${catOf(b.w, topic)}">${CAT_LABEL[catOf(b.w, topic)]}</em><div class="bw">${esc(b.w)}</div><button class="x" data-unstar="${esc(bmKey(b.w, topic))}" aria-label="지우기">×</button></div>`).join('');
+    return `<div class="t"><div class="th"><b>${esc(topic)}</b><button class="copy" data-bmtopic="${esc(topic)}">🤖 AI 질문 복사</button></div>${rows}</div>`;
+  }).join('') : '<div class="sub" style="text-align:center;padding:20px 0">아직 없어요. 게임 중 모르는 키워드 카드를 꾹 눌러 보세요.</div>';
+  $('#btnBmCopy').disabled = $('#btnBmClear').disabled = !list.length;
+  hideOverlays();
+  $('#bookmarks').classList.remove('hidden');
+}
 function showMenu() {
   const sel = settings.tracks.filter(trackById);
   const chip = (id, label, on, count) => `<button class="chip ${on ? 'on' : ''}" data-track="${esc(id)}">${esc(label)}${count != null ? ` <small>${count}</small>` : ''}</button>`;
@@ -1430,6 +1523,8 @@ function showMenu() {
   $('#mCoins').textContent = progress.coins.toLocaleString();
   $('#optSound').checked = settings.sound;
   renderMenuStatus();
+  const nb = bookmarks().length;
+  $('#mBmCount').textContent = nb ? `(${nb})` : '';
   const allMk = Object.entries(store.get('mistakes', {})).sort((a, b) => b[1] - a[1]).slice(0, 12);
   $('#menuMistakeWrap').classList.toggle('hidden', !allMk.length);
   $('#menuMistakes').innerHTML = allMk.map(([n, c]) => `<span class="chip">${esc(n)} <small>${c}</small></span>`).join('');
@@ -1460,6 +1555,9 @@ function showResult() {
   $('#resultButtons').innerHTML = html + (!won && !G.settled ? `<div class="sub" style="width:100%;text-align:center">보유 🪙${progress.coins.toLocaleString()} · ♥ ${progress.hearts}</div>` : '');
   // 이동 추가를 고민하는 중에는 정답(주제별 키워드)을 보여주지 않는다
   $('#reviewWrap').classList.toggle('hidden', !won && !G.settled);
+  const starred = gameStars();
+  $('#starWrap').classList.toggle('hidden', !starred.length);
+  $('#starList').innerHTML = starred.map(b => `<div class="bm-item"><div class="bw">★ <b>${esc(b.w)}</b><small>${esc(b.topic)} · ${CAT_LABEL[catOf(b.w, b.topic)]}</small></div></div>`).join('');
   const mk = G.mistakes || {};
   const confused = Object.keys(mk).map(Number).sort((a, b) => mk[b] - mk[a]);
   $('#mistakeWrap').classList.toggle('hidden', !confused.length);
@@ -1478,9 +1576,14 @@ function sheetRows(i) {
   return CAT_ORDER.map(c => ({ c, ws: words.filter(w => (cats[w] || '기타') === c) })).filter(r => r.ws.length)
     .map(r => ({ ...r, ws: r.ws.map(w => ({ w, shown: shown.has(w) })) }));
 }
+// 이번 판에 ★ 표시한 키워드 (지금도 저장돼 있는 것만)
+function gameStars() {
+  return (G.starred || []).map(id => G.cards[id]).filter(Boolean)
+    .map(c => ({ w: c.text, topic: G.topics[c.topic].name })).filter(b => isStarred(b.w, b.topic));
+}
 function topicSheet(i, cls, extra) {
   const t = G.topics[i], done = G.completed.includes(i);
-  const rows = sheetRows(i).map(r => `<div class="cr"><em class="cat c-${r.c}">${CAT_LABEL[r.c]}</em><div class="ws">${r.ws.map(x => `<span class="${x.shown ? '' : 'extra'}">${esc(x.w)}</span>`).join('')}</div></div>`).join('');
+  const rows = sheetRows(i).map(r => `<div class="cr"><em class="cat c-${r.c}">${CAT_LABEL[r.c]}</em><div class="ws">${r.ws.map(x => `<span class="${x.shown ? '' : 'extra'} ${isStarred(x.w, t.name) ? 'starw' : ''}">${esc(x.w)}</span>`).join('')}</div></div>`).join('');
   return `<div class="t ${cls}"><div class="th"><b>${cls !== 'miss' && done ? '✓ ' : ''}${esc(t.name)}</b> ${extra}<button class="copy" data-copy="${i}">🤖 AI 질문 복사</button></div>${rows}</div>`;
 }
 // 퀴즈용: 데이터베이스 주제 이름으로 정리표 만들기 (hi = 강조할 키워드)
@@ -1488,7 +1591,7 @@ function dbSheet(name, hi, tag) {
   const t = topicByName(name);
   if (!t) return '';
   const rows = CAT_ORDER.map(c => ({ c, ws: t.cards.filter(w => (t.cats[w] || '기타') === c) })).filter(r => r.ws.length)
-    .map(r => `<div class="cr"><em class="cat c-${r.c}">${CAT_LABEL[r.c]}</em><div class="ws">${r.ws.map(w => `<span class="${w === hi ? 'hi' : ''}">${esc(w)}</span>`).join('')}</div></div>`).join('');
+    .map(r => `<div class="cr"><em class="cat c-${r.c}">${CAT_LABEL[r.c]}</em><div class="ws">${r.ws.map(w => `<span class="${w === hi ? 'hi' : ''} ${isStarred(w, name) ? 'starw' : ''}">${esc(w)}</span>`).join('')}</div></div>`).join('');
   return `<div class="t"><div class="th"><b>${esc(name)}</b> ${tag || ''}<button class="copy" data-copyname="${esc(name)}">🤖 AI 질문 복사</button></div>${rows}</div>`;
 }
 function dbText(name) {
@@ -1788,6 +1891,16 @@ $('#btnExport').addEventListener('click', () => openBackup('export'));
 $('#btnImportSave').addEventListener('click', () => openBackup('import'));
 $('#btnBackupAction').addEventListener('click', backupAction);
 $('#btnBackupClose').addEventListener('click', showMenu);
+$('#btnBookmarks').addEventListener('click', showBookmarks);
+$('#btnBmClose').addEventListener('click', showMenu);
+$('#btnBmCopy').addEventListener('click', () => copyText(bmText(bookmarks()), '📋 복사했어요 — AI 채팅에 붙여넣으세요'));
+$('#btnBmClear').addEventListener('click', () => { if (!confirm('나중에 볼 키워드를 모두 지울까요?')) return; bookmarks().forEach(b => setStar(b.w, b.topic, false)); showBookmarks(); });
+$('#bmList').addEventListener('click', e => {
+  const x = e.target.closest('[data-unstar]');
+  if (x) { const [w, topic] = x.dataset.unstar.split('\u0001'); setStar(w, topic, false); return showBookmarks(); }
+  const c = e.target.closest('[data-bmtopic]');
+  if (c) copyText(dbText(c.dataset.bmtopic) + '\n\n' + bmText(bookmarks().filter(b => b.topic === c.dataset.bmtopic)), '📋 복사했어요 — AI 채팅에 붙여넣으세요');
+});
 $('#btnMistakeReset').addEventListener('click', () => { if (confirm('헷갈린 주제 누적 기록을 지울까요?')) { store.del('mistakes'); touch(); showMenu(); } });
 $('#optSound').addEventListener('change', e => { settings.sound = e.target.checked; saveSettings(); if (settings.sound) sfx.test(); });
 $('#btnQuizClose').addEventListener('click', closeQuiz);
@@ -1812,6 +1925,7 @@ $('#trackChips').addEventListener('click', e => {
 $('#result').addEventListener('click', e => {
   const b = e.target.closest('[data-copy]');
   if (b) return copyText(topicText(+b.dataset.copy) + '\n\n' + AI_ASK, '📋 복사했어요 — AI 채팅에 붙여넣으세요');
+  if (e.target.closest('#btnStarCopy')) return copyText(bmText(gameStars()), '📋 복사했어요 — AI 채팅에 붙여넣으세요');
   if (e.target.closest('#btnCopyAll')) copyText(G.topics.map((_, i) => topicText(i)).join('\n\n') + '\n\n' + AI_ASK.replace('이 질환을', '각 질환을'), '📋 이번 판 주제를 모두 복사했어요');
 });
 $('#resultButtons').addEventListener('click', e => {
@@ -1842,7 +1956,7 @@ window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer
 // 공개용 anon 키: 서버의 행 수준 보안(RLS)으로 로그인한 본인 기록만 읽고 쓸 수 있다.
 const SUPABASE_URL = 'https://ayumvsgjltfnsymxmnaf.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF5dW12c2dqbHRmbnN5bXhtbmFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0ODk5MjcsImV4cCI6MjEwNjA2NTkyN30.dNJrqmzWQOfwy5UhiljlZXd5TZZhv90U-JWlMndDyfQ';
-const SYNC_KEYS = ['progress', 'game', 'days', 'missions', 'mistakes', 'customPacks', 'settings', 'stats'];
+const SYNC_KEYS = ['progress', 'game', 'days', 'missions', 'mistakes', 'customPacks', 'settings', 'stats', 'bookmarks'];
 const sync = { sb: null, user: null, state: 'loading', busy: false, again: false, timer: null };
 
 // "최근 플레이 시각": 실제로 플레이 · 구매 · 설정 변경을 했을 때만 갱신 → 두 기기 중 누가 최신인지 판단
@@ -1883,6 +1997,10 @@ function mergeSaves(local, remote) {
   const mistakes = { ...mA };
   Object.entries(mB).forEach(([k, n]) => { mistakes[k] = Math.max(mistakes[k] || 0, n); });
   if (Object.keys(mistakes).length) keys.mistakes = JSON.stringify(mistakes);
+  // ★: 키워드마다 더 나중에 바뀐 기록(저장 또는 삭제)을 따른다
+  const bm = new Map();
+  parse(base.keys.bookmarks, []).concat(parse(other.keys.bookmarks, [])).forEach(b => { const k = bmKey(b.w, b.topic); if (!bm.has(k) || (b.at || 0) > (bm.get(k).at || 0)) bm.set(k, b); });
+  if (bm.size) keys.bookmarks = JSON.stringify([...bm.values()]);
   const pA = parse(base.keys.customPacks, []), pB = parse(other.keys.customPacks, []);
   const packs = pA.concat(pB.filter(p => !pA.some(q => q.id === p.id)));
   if (packs.length) keys.customPacks = JSON.stringify(packs);
@@ -2024,7 +2142,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
 }
 
-window.__meditaire = { topicText, normalizeTopic, get TRACKS() { return TRACKS; }, sync, syncNow, mergeSaves, localSnapshot, repairInfo, applyFreezes, buyFreeze, repairStreak, streakInfo, missionState, mission, markAttendance, dayKey, exportCode, importCode, recordMistake, sfx, get G() { return G; }, get busy() { return busy; }, progress, openQuiz, answerQuiz, get quiz() { return quiz; }, canDrop, legalMoves, move, draw, simulate, dealOnce, newStage, startStage, doMove, doDraw, runOf, DIFFS };
+window.__meditaire = { bookmarks, toggleStar, setStar, topicText, normalizeTopic, get TRACKS() { return TRACKS; }, sync, syncNow, mergeSaves, localSnapshot, repairInfo, applyFreezes, buyFreeze, repairStreak, streakInfo, missionState, mission, markAttendance, dayKey, exportCode, importCode, recordMistake, sfx, get G() { return G; }, get busy() { return busy; }, progress, openQuiz, answerQuiz, get quiz() { return quiz; }, canDrop, legalMoves, move, draw, simulate, dealOnce, newStage, startStage, doMove, doDraw, runOf, DIFFS };
 })();
 </script>
 </body>
