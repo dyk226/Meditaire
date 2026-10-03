@@ -309,7 +309,7 @@ input[type=text] { width: 100%; }
   <main id="board"></main>
   <footer id="actions">
     <button id="btnUndo">↶ 되돌리기 <small>🪙600</small></button>
-    <button id="btnHint">💡 힌트</button>
+    <button id="btnHint">💡 힌트 <small>🪙800</small></button>
     <button id="btnRetry">⟳ 처음부터</button>
   </footer>
 </div>
@@ -365,7 +365,7 @@ input[type=text] { width: 100%; }
       <li>주제 카드는 B의 <b>빈 칸</b>이나 <b>같은 주제 키워드 뭉치 위</b>에 놓을 수 있어요. 하지만 B에서 주제 카드 위에는 아무것도 못 올려요 — 키워드를 주제 카드 위에 모으는 건 A에서만.</li>
       <li>각 단계는 <b>정해진 이동 횟수</b> 안에 모든 주제를 완성해야 클리어! 덱을 넘기는 것도 1번으로 세요.</li>
       <li>난이도는 단계마다 무작위: 쉬움 25% · 보통 55% · 어려움 20% (어려움은 5칸).</li>
-      <li>클리어하면 <b>남은 이동 × 5 코인</b>. 코인으로 되돌리기(600)나 이동 +10(2500)을 살 수 있어요.</li>
+      <li>클리어하면 <b>남은 이동 × 5 코인</b>. 코인으로 되돌리기(600) · 힌트(800) · 이동 +10(2500)을 살 수 있어요.</li>
       <li>이동을 다 쓰고 포기하면 <b>하트 −1</b>. 하트는 30분마다 1개씩 차거나, 10초 퀴즈를 5개 연속 맞히면 1개 채워져요.</li>
     </ol>
   </div>
@@ -727,7 +727,7 @@ function newStage(stage) {
 // ---------- Game (UI 상태) ----------
 let G = null, busy = false;
 const MAX_HEARTS = 5, HEART_MS = 30 * 60 * 1000;
-const COST_UNDO = 600, COST_MOVES = 2500, EXTRA_MOVES = 10, COIN_PER_MOVE = 5;
+const COST_UNDO = 600, COST_HINT = 800, COST_MOVES = 2500, EXTRA_MOVES = 10, COIN_PER_MOVE = 5;
 const progress = Object.assign({ stage: 1, cleared: 0, coins: 0, hearts: MAX_HEARTS, heartFrom: Date.now() }, store.get('progress', {}));
 const saveProgress = () => store.set('progress', progress);
 function snapshot(s) { return JSON.stringify({ cols: s.cols, slots: s.slots, stock: s.stock, waste: s.waste, completed: s.completed, moves: s.moves, over: s.over, won: s.won }); }
@@ -1208,14 +1208,17 @@ function recordMistake(src, dst) {
 
 function hint() {
   if (busy || !G || G.over) return;
+  if (!spend(COST_HINT)) return;
+  saveGame(); render();
   const m = legalMoves(G)[0];
   if (m) {
     flash(document.querySelector(`[data-src="${m.src}"]`));
     const t = [...document.querySelectorAll(`[data-drop="${m.dst}"]`)].pop();
     flash(t);
+    toast(`💡 반짝이는 카드를 반짝이는 곳으로 (−🪙${COST_HINT})`);
   } else {
     flash(document.querySelector('[data-action="draw"]'));
-    toast('덱에서 카드를 펼쳐 보세요');
+    toast(`💡 덱에서 카드를 펼쳐 보세요 (−🪙${COST_HINT})`);
   }
 }
 
@@ -1354,6 +1357,7 @@ function render() {
   syncHearts();
   $('#hudSub').innerHTML = `<span class="hearts">♥</span>${progress.hearts} · 🪙${progress.coins.toLocaleString()} · <span class="flame">🔥</span>${streakInfo().cur} · ${esc(trackLabel(G.trackIds))}`;
   $('#btnUndo').disabled = !G.history.length || G.over || progress.coins < COST_UNDO;
+  $('#btnHint').disabled = G.over || progress.coins < COST_HINT;
 }
 
 function fitText(root) {
